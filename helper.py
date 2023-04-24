@@ -44,9 +44,13 @@ def make_features(t, y, context_points, batch_s=32):
     diff_y, diff_x, d, x_n, y_n = DE(y, t, context_points, embed=True)
     y_prime = np.concatenate([y[:, :, np.newaxis], diff_y.reshape(batch_s, -1, 1), d.reshape(batch_s, -1, 1), y_n.reshape(batch_s, -1, 1)], axis=2)
     query_x = key_x = x_prime = np.concatenate([x, diff_x, x_n], axis=2)
+    
+    query_xy_label = np.ones((batch_s, y.shape[1], 1))
+    key_xy_label = np.concatenate([np.ones((batch_s, context_points, 1)), np.zeros((batch_s, y.shape[1]-context_points, 1))], axis=1)
 
-    key_xy = value_xy = np.concatenate((y_prime, x_prime), axis=2)
-    query_xy = key_xy.copy()
+
+    key_xy = value_xy = np.concatenate([y_prime, key_xy_label, x_prime], axis=2)
+    query_xy = np.concatenate([y_prime, query_xy_label, x_prime], axis=2)
     query_xy[:, context_points:, :3] = 0
 
     return query_x, key_x, value_x, query_xy, key_xy, value_xy, mask, y_n
@@ -83,9 +87,9 @@ def DE(ŷ, x̂, c, embed=False):
             y_temp = ŷ[i , :c]
             ix = np.argsort(np.abs(current_x - x_temp))[1] 
 
-            x_rep = float(current_x) - float(x_temp[ix])
+            x_rep = current_x - x_temp[ix]
             y_rep = current_y - y_temp[ix]
-            deriv = float(y_rep) / (float(x_rep) + 0.0001)
+            deriv = y_rep / (x_rep + 0.0001)
             
             diff_y[i, j] = y_rep
             diff_x[i, j, :] = x_rep
@@ -103,15 +107,14 @@ def DE(ŷ, x̂, c, embed=False):
             y_temp = ŷ[i , :j+1]
 
             ix = np.argmin(np.abs(x_temp[-1] - x_temp[:-1]))
-            x_rep = float(x_temp[-1]) - float(x_temp[ix])
-            y_rep = float(y_temp[-1]) - float(y_temp[ix])
+            x_rep = x_temp[-1] - x_temp[ix]
+            y_rep = y_temp[-1] - y_temp[ix]
 
-            deriv = float(y_rep) / (float(x_rep) + 0.0001)
+            deriv = y_rep / (x_rep + 0.0001)
             
             diff_y[i, j] = y_rep
             diff_x[i, j, :] = x_rep
             dd[i, j] = deriv
-            
             x_n[i, j, :] = x_temp[ix]
 
             if embed:
@@ -122,3 +125,8 @@ def DE(ŷ, x̂, c, embed=False):
             y_n[i, j] = y_temp[ix]
 
     return diff_y, diff_x, dd, x_n, y_n
+
+## We will need the date information in a numeric version 
+def date_to_numeric(col):
+    datetime = pd.to_datetime(col.date)
+    return datetime.dt.hour, datetime.dt.day, datetime.dt.month, datetime.dt.year
