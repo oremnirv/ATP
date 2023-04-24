@@ -33,6 +33,7 @@ def batch_sampler(t, y, given_hr = 96, pred_hr = 192):
 
 def make_features(t, y, context_points, batch_s=32):
     x = PE(t, d=28, TΔmin=0.1, Tmax=2)
+    
     value_x = y[:, :, np.newaxis]
     context_points = int(context_points)
 
@@ -40,7 +41,7 @@ def make_features(t, y, context_points, batch_s=32):
     mask[:context_points, :context_points] = 1 
     mask = np.repeat(mask[np.newaxis, :, :], batch_s, axis=0)
 
-    diff_y, diff_x, d, x_n, y_n = derivative_extr(y.squeeze(), t, context_points, embed=True)
+    diff_y, diff_x, d, x_n, y_n = DE(y.squeeze(), t, context_points, embed=True)
     y_prime = np.concatenate([y[:, :, np.newaxis], diff_y.reshape(batch_s, -1, 1), d.reshape(batch_s, -1, 1), y_n.reshape(batch_s, -1, 1)], axis=2)
     query_x = key_x = x_prime = np.concatenate([x, diff_x, x_n], axis=2)
 
@@ -62,7 +63,7 @@ def PE(t, d=28, TΔmin=0.1, Tmax=2):  # return.shape=(T,B,d)
     return x
 
 
-def derivative_extr(ŷ, x̂, c, embed=False):
+def DE(ŷ, x̂, c, embed=False):
     d=1
     if embed:
         d=28
