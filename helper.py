@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 
 ### let's create data batches that fit the task
 def batcher(t, y, batch_s = 32, training=True, given_hr = 96, pred_hr = 192):
@@ -128,5 +129,5 @@ def DE(ŷ, x̂, c, embed=False):
 
 ## We will need the date information in a numeric version 
 def date_to_numeric(col):
-    datetime = pd.to_datetime(col.date)
+    datetime = pd.to_datetime(col)
     return datetime.dt.hour, datetime.dt.day, datetime.dt.month, datetime.dt.year
