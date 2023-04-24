@@ -41,7 +41,7 @@ def make_features(t, y, context_points, batch_s=32):
     mask[:context_points, :context_points] = 1 
     mask = np.repeat(mask[np.newaxis, :, :], batch_s, axis=0)
 
-    diff_y, diff_x, d, x_n, y_n = DE(y.squeeze(), t, context_points, embed=True)
+    diff_y, diff_x, d, x_n, y_n = DE(y, t, context_points, embed=True)
     y_prime = np.concatenate([y[:, :, np.newaxis], diff_y.reshape(batch_s, -1, 1), d.reshape(batch_s, -1, 1), y_n.reshape(batch_s, -1, 1)], axis=2)
     query_x = key_x = x_prime = np.concatenate([x, diff_x, x_n], axis=2)
 
