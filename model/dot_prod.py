@@ -4,53 +4,72 @@
 import tensorflow as tf
 
 
-def dot_product(q, k, v, mask):
-    qk = tf.matmul(q, k, transpose_b=True)
-    qk = tf.cast(qk, tf.float32)
-    dk = tf.cast(tf.shape(k)[-1], tf.float32)
-    qk = tf.cast(qk / tf.math.sqrt(dk), tf.float32)
-    if mask is not None:
-        qk += ((tf.cast(mask[:, tf.newaxis, :, :], tf.float32)) * -1e9)
+class DotProductAttention(tf.keras.layers.Layer):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        
+    def call(self, queries, keys, values, d_k, mask=None):
+        scores = tf.matmul(queries, keys, transpose_b=True) / tf.sqrt(tf.cast(d_k, tf.float32))        
+        if mask is not None:
+            inverse_mask = (mask == False)
+            scores += -1e9 * tf.cast(inverse_mask,tf.float32)
+        weights = tf.keras.backend.softmax(scores)
+        
+        #below sets to zero if mask had a row of zeros (softmax would give data leakage)
+        if mask is not None:
+            weights = tf.math.minimum(tf.math.abs(tf.cast(mask,tf.float32)),tf.math.abs(weights))
+        
+        return tf.matmul(weights, values)
 
-    w = tf.nn.softmax(qk, axis=-1, name='att_w')  # (batch_size X d_model X seq_len X seq_len)
-    o = tf.matmul(w, tf.cast(v, tf.float32))  # (batch size, num heads, seq_len, 32)
-    return o
 
+class MultiHeadAttention(tf.keras.layers.Layer):
+    def __init__(self, num_heads, output_shape, projection_shape):
+        super().__init__()
+        self.attention = DotProductAttention()  # Scaled dot product attention
+        self.heads = num_heads  # Number of attention heads to use
+        self.projection_shape = projection_shape  # Dimensionality of the linearly projected queries, keys and values
+        self.W_q = tf.keras.layers.Dense(projection_shape)  # Learned projection matrix for the queries
+        self.W_k = tf.keras.layers.Dense(projection_shape)  # Learned projection matrix for the keys
+        self.W_v = tf.keras.layers.Dense(projection_shape)  # Learned projection matrix for the values
+        self.W_o = tf.keras.layers.Dense(output_shape)  # Learned projection matrix for the multi-head output
+        assert projection_shape % self.heads == 0
 
-class MultiHeadAttention2D(tf.keras.layers.Layer):
-    def __init__(self, d_model, num_heads):
-        super(MultiHeadAttention2D, self).__init__()
-        self.num_heads = num_heads
-        self.d_model = d_model
-        assert d_model % self.num_heads == 0
-        self.depth = d_model // self.num_heads
-        self.wq = tf.keras.layers.Dense(d_model, name='wq')
-        self.wk = tf.keras.layers.Dense(d_model, name='wk')
-        self.wv = tf.keras.layers.Dense(d_model, name='wv')
-        self.dense = tf.keras.layers.Dense(d_model)
+        #heads must be a factor of projection_shape
 
-    def split_heads(self, x, batch_size):
-        """Split the last dimension into (num_heads, depth).
-    Transpose the result such that the shape is (batch_size, num_heads, seq_len, depth)
-    """
-        x = tf.reshape(x, (batch_size, -1, self.num_heads, self.depth))
-        return tf.transpose(x, perm=[0, 2, 1, 3])
+    def reshape_tensor(self, x, heads, flag):
+        if flag:
+            # Tensor shape after reshaping and transposing: (batch_size, heads, seq_length, -1)
+            x = tf.reshape(x, shape=(tf.shape(x)[0], tf.shape(x)[1], heads, -1))
+            x = tf.transpose(x, perm=(0, 2, 1, 3))
+        else:
+            # Reverting the reshaping and transposing operations: (batch_size, seq_length, projection_shape)
+            x = tf.transpose(x, perm=(0, 2, 1, 3))
+            x = tf.reshape(x, shape=(tf.shape(x)[0], tf.shape(x)[1], self.projection_shape))
+        return x
 
-    def call(self, q, k, v, mask):
-        batch_size = tf.shape(q)[0]
-        q = self.wq(q)  # (batch_size, seq_len, d_model)
-        k = self.wk(k)  # (batch_size, seq_len, d_model)
-        v = self.wv(v)  # (batch_size, seq_len, d_model)
+    def call(self, queries, keys, values, mask=None):
+        # Rearrange the queries to be able to compute all heads in parallel
+        q_reshaped = self.reshape_tensor(self.W_q(queries), self.heads, True)
+        # Resulting tensor shape: (batch_size, heads, input_seq_length, -1)
 
-        q = self.split_heads(q, batch_size)  # (batch_size, num_heads, seq_len_q, depth)
-        k = self.split_heads(k, batch_size)  # (batch_size, num_heads, seq_len_q, depth)
-        v = self.split_heads(v, batch_size)  # (batch_size, num_heads, seq_len_q, depth)
+        # Rearrange the keys to be able to compute all heads in parallel
+        k_reshaped = self.reshape_tensor(self.W_k(keys), self.heads, True)
+        # Resulting tensor shape: (batch_size, heads, input_seq_length, -1)
 
-        o = dot_product(q, k, v, mask)
-        o = tf.transpose(o, perm=[0, 2, 1, 3])  # (batch_size, seq_len_q, num_heads, depth)
-        o = tf.reshape(o, (batch_size, -1, self.d_model))  # (batch_size, seq_len_q, d_model)
-        o = self.dense(o)  # (batch_size, seq_len_q, d_model)
-        return o
+        # Rearrange the values to be able to compute all heads in parallel
+        v_reshaped = self.reshape_tensor(self.W_v(values), self.heads, True)
+        # Resulting tensor shape: (batch_size, heads, input_seq_length, -1)
 
+        # Compute the multi-head attention output using the reshaped queries, keys and values
+        o_reshaped = self.attention(q_reshaped, k_reshaped, v_reshaped, self.projection_shape, mask)
+        # Resulting tensor shape: (batch_size, heads, input_seq_length, -1)
+
+        # Rearrange back the output into concatenated form
+        output = self.reshape_tensor(o_reshaped, self.heads, False)
+        # Resulting tensor shape: (batch_size, input_seq_length, d_v)
+
+        # Apply one final linear projection to the output to generate the multi-head attention
+        # Resulting tensor shape: (batch_size, input_seq_length, d_model)
+        return self.W_o(output)
 
 

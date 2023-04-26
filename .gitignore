@@ -1,1 +1,4 @@
-.ipynb*
+*.pyc
+*.csv
+testing_notebook.ipynb
+.ipynb_checkpoints*
