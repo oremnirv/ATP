@@ -1,0 +1,149 @@
+import tensorflow as tf
+from model import dot_prod
+
+class FFN_1(tf.keras.layers.Layer):
+    def __init__(self, d_model, dropout_rate=0.1):
+        super(FFN_1, self).__init__()
+        self.d_model = d_model
+      
+        self.dense_a = tf.keras.layers.Dense(d_model)
+        self.dense_b = tf.keras.layers.Dense(d_model)
+        self.dense_c = tf.keras.layers.Dense(d_model)
+        self.layernorm = tf.keras.layers.LayerNormalization()
+        self.dropout = tf.keras.layers.Dropout(dropout_rate)
+
+    def call(self, x, query):
+        ## call layer after first MHA_X
+        ## x is the output of MHA_X_1
+        ## query is query input to MHA_X_1 
+
+        query = self.dense_a(query)
+        x += query
+        x = self.layernorm(x)
+        x = self.dense_b(x)
+        x = tf.nn.gelu(x)
+        x = self.dropout(x)
+        return self.dense_c(x)
+
+class FFN_o(tf.keras.layers.Layer):
+    def __init__(self, d_model, dropout_rate=0.1):
+        super(FFN_o, self).__init__()
+
+        self.d_model = d_model
+        self.dense_a = tf.keras.layers.Dense(d_model)
+        self.dense_b = tf.keras.layers.Dense(d_model)
+        self.layernorm = tf.keras.layers.LayerNormalization()
+        self.dropout = tf.keras.layers.Dropout(dropout_rate)
+
+    def call(self, x, query):
+
+      ## query is the output of previous MHA_X layer
+      ## x is query input to MHA_X_o 
+
+        x += query
+        x = self.layernorm(x)
+        x = self.dense_a(x)
+        x = tf.nn.gelu(x)
+        x = self.dropout(x)
+        return self.dense_b(x)
+
+class MHA_X_a(tf.keras.layers.Layer):
+    def __init__(self,
+                  d_model,
+                  num_heads,
+                  dropout_rate=0.1):
+        super(MHA_X_a, self).__init__()
+        self.mha = dot_prod.MultiHeadAttention2D(d_model, num_heads)
+        self.ffn = FFN_1(d_model, dropout_rate)
+
+    def call(self, query, key, value, mask):
+        x = self.mha(query, key, value, mask)
+        x = self.ffn(x, query)  # Shape `(batch_size, seq_len, d_model)`.
+        return x
+
+class MHA_XY_a(tf.keras.layers.Layer):
+    def __init__(self,
+                  d_model,
+                  num_heads,
+                  dropout_rate=0.1):
+        super(MHA_XY_a, self).__init__()
+        self.mha = dot_prod.MultiHeadAttention2D(d_model, num_heads)
+        self.ffn = FFN_1(d_model, dropout_rate)
+
+    def call(self, query, key, value, mask):
+        x = self.mha(query, key, value, mask)
+        x = self.ffn(x, query)  # Shape `(batch_size, seq_len, d_model)`.
+        return x
+
+
+class MHA_X_b(tf.keras.layers.Layer):
+    def __init__(self,
+                  d_model,
+                  num_heads,
+                  dropout_rate=0.1):
+        super(MHA_X_b, self).__init__()
+        self.mha = dot_prod.MultiHeadAttention2D(d_model, num_heads)
+        self.ffn = FFN_o(d_model, dropout_rate)
+
+    def call(self, query, key, value, mask):
+        x = self.mha(query, key, value, mask)
+        x = self.ffn(x, query)  # Shape `(batch_size, seq_len, d_model)`.
+        return x
+
+
+class MHA_XY_b(tf.keras.layers.Layer):
+    def __init__(self,
+                  d_model,
+                  num_heads,
+                  dropout_rate=0.1):
+        super(MHA_XY_b, self).__init__()
+        self.mha = dot_prod.MultiHeadAttention2D(d_model, num_heads)
+        self.ffn = FFN_o(d_model, dropout_rate)
+
+    def call(self, query, key, value, mask, prev_mha_xy_out):
+        x = self.mha(query, key, value, mask)
+        x = self.ffn(x, prev_mha_xy_out)  # Shape `(batch_size, seq_len, d_model)`.
+        return x
+
+
+class ATP(tf.keras.Model):
+    def __init__(self, d_model,
+                  num_heads,
+                  num_layers,
+                  dropout_rate=0.1):
+        super(ATP, self).__init__()
+
+        self.num_layers = num_layers
+        
+        self.mha_x_a = MHA_X_a(d_model,
+                  num_heads,
+                  dropout_rate=0.1)
+      
+        self.mha_x_b = [MHA_X_b(d_model=d_model, num_heads=num_heads,
+                     dropout_rate=dropout_rate) for _ in range(num_layers)]
+
+        self.mha_xy_a = MHA_XY_a(d_model, num_heads, dropout_rate=0.1)
+        
+        self.mha_xy_b = [MHA_XY_b(d_model=d_model, num_heads=num_heads,
+                     dropout_rate=dropout_rate) for _ in range(num_layers)]
+
+        self.dense_sigma = tf.keras.layers.Dense(1)
+        self.dense_last = tf.keras.layers.Dense(1)
+
+    def call(self, input, training=True):
+        query_x, key_x, value_x, query_xy, key_xy, value_xy, mask, y_n = input
+        x = self.mha_x_a(query_x,key_x, value_x, mask)
+        xy = self.mha_xy_a(query_xy, key_xy, value_xy, mask)
+
+        for i in range(self.num_layers):
+            x  = self.mha_x_b[i](x, x, value_x, mask)
+            xy_temp = xy[:, :]
+            xy = xy + x
+            xy  = self.mha_xy_b[i](xy, xy, xy, mask, xy_temp)
+            if ((i < (self.num_layers - 1)) | (self.num_layers == 1)):
+                log_σ = self.dense_sigma(xy)
+
+        z = xy
+        μ = self.dense_last(z) + y_n[:, :, tf.newaxis]
+
+        return tf.concat([μ, log_σ], axis=-1)
