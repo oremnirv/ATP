@@ -53,7 +53,7 @@ class our_model_general(keras.models.Model):
         
         y_n_closest = y_n[:,:,:y.shape[-1]] #### need to update this based on how we pick closest point
 
-        μ, log_σ = self._atp([query_x, key_x, value_x, query_xy, key_xy, value_xy, mask, y_n],training)
+        μ, log_σ = self._atp([query_x, key_x, value_x, query_xy, key_xy, value_xy, mask, y_n_closest],training)
         return μ, log_σ
       
 
