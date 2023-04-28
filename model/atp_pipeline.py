@@ -6,7 +6,7 @@ from model.atp import ATP
 
 
 
-class our_model_general(keras.models.Model):
+class atp_pipeline(keras.models.Model):
     
     def __init__(self,num_heads=4,projection_shape_for_head=4,output_shape=64,rate=0.1,permutation_repeats=1,
                  bound_std=False,num_layers=3,enc_dim=32,xmin=0.1,xmax=2,**kwargs):
@@ -54,7 +54,7 @@ class our_model_general(keras.models.Model):
         y_n_closest = y_n[:,:,:y.shape[-1]] #### need to update this based on how we pick closest point
 
         μ, log_σ = self._atp([query_x, key_x, value_x, query_xy, key_xy, value_xy, mask, y_n_closest],training)
-        return μ, log_σ
+        return μ[:,n_C:], log_σ[:,n_C:]
       
 
 

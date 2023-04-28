@@ -9,7 +9,6 @@ class feature_wrapper(tf.keras.layers.Layer):
     def call(self, inputs):
     
         x_emb,y,y_diff,x_diff,d,x_n,y_n,n_C,n_T = inputs ##think about clearer notation
-
         
         dim_y = y.shape[-1]
         dim_x = x_n.shape[-1]
@@ -100,13 +99,21 @@ class DE(tf.keras.layers.Layer):
 
         derivative_new = tf.where(tf.math.is_nan(derivative), 10000.0, derivative)
         derivative_new_2 = tf.where(tf.abs(derivative_new) > 200., 0., derivative_new)
-
         derivative_scaled = self.batch_norm_layer(derivative_new_2,training=training)
 
-        if tf.math.reduce_any(derivative_new != derivative_new_2):
-            # you will need a label as some of the derivatives aren't "real"
-            label_deriv = tf.cast(derivative_new_2 == derivative_new,"float32")
-            derivative_scaled = tf.concat([derivative_scaled,label_deriv],axis=-1)
+        # if tf.math.reduce_any(derivative_new != derivative_new_2):
+        #     # you will need a label as some of the derivatives aren't "real"
+        #     label_deriv = tf.cast(derivative_new_2 == derivative_new,"float32")
+        #     derivative_scaled_new = tf.concat([derivative_scaled,label_deriv],axis=-1)
+        #     #why does the shape of derivative scaled go to none if we don't rename?
+        #     print("if loop")
+        # else:
+        #     derivative_scaled_new = derivative_scaled
+        #     print("else loop")
+
+        # print(derivative_scaled_new.shape)
+
+        ###### need to fix this problem - function works when it is called in the notebook but not here
 
         return y_diff,x_diff,derivative_scaled,x_n,y_n
 
