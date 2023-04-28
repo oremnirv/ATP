@@ -33,6 +33,8 @@ class feature_wrapper(tf.keras.layers.Layer):
 
         query_xy_label = tf.concat([tf.zeros((batch_s,n_C,1)),tf.ones((batch_s,n_T,1))],axis=1)
         y_prime_1 = tf.concat([y[:,:n_C],tf.zeros((batch_s,n_T,dim_y))],axis=1)
+
+    
         y_prime_2 = tf.concat([y_diff[:,:n_C],tf.zeros((batch_s,n_T,dim_y*dim_x))],axis=1)
         y_prime_3 = tf.concat([d[:,:n_C],tf.zeros((batch_s,n_T,deriv_shape))],axis=1)
         y_prime_masked = tf.concat([y_prime_1,y_prime_2,y_prime_3,y_n],axis=2)
