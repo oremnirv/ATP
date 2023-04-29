@@ -2,28 +2,17 @@ import numpy as np
 import pandas as pd
 
 ### let's create data batches that fit the task
-def batcher(t, y, batch_s = 32,window=100):
-    
-    batch_s = min(batch_s, bat)
-    idx = np.random.choice(np.arange(0, len(y) - window), batch_s, replace=False)
-    
+def batcher(t, y, batch_s = 32, window = 288):
+    '''
+    cutting one long array to sequences of length 'window'.
+    'batch_s' must be ≤ full array - window length
+    '''
+    batch_s = min(batch_s, y.shape[0]-window)    
+    idx = np.random.choice(np.arange(0, y.shape[0] - window), batch_s, replace=False)    
     y = np.array([np.array(y)[i:i+window] for i in idx])
     t = np.array([np.array(t)[i:i+window] for i in idx])
-    
     return t, y
   ######## need to edit to make it clearer how to use the batcher so it returns what is desired
-
-def create_batch(input_list, batch_s=32):
-    
-    batch_list = []
-    shape_label = input_list[0].shape[0]
-    batch_idx_la = np.random.choice(list(range(shape_label)), batch_s)
-    for i in input_list: 
-        batch_item = (i[batch_idx_la,])
-        batch_list.append(batch_item)
-
-    return batch_list
-
 
 ### It is usually helpful to make gaps during predictions as opposed to providing the full sequence. Let's then run the batcher outputs through a sampler 
 def batch_sampler(t, y, given_hr = 96, pred_hr = 192):

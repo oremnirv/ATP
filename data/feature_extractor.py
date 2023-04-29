@@ -8,81 +8,76 @@ class feature_wrapper(tf.keras.layers.Layer):
 
     def call(self, inputs):
     
-        x_emb,y,y_diff,x_diff,d,x_n,y_n,n_C,n_T = inputs ##think about clearer notation
+        x_emb, y, y_diff, x_diff, d, x_n, y_n, n_C, n_T = inputs ##think about clearer notation
         
-        dim_y = y.shape[-1]
         dim_x = x_n.shape[-1]
-        deriv_shape = d.shape[-1]
-
         ##### inputs for the MHA-X head ######
-
-
         value_x =  tf.identity(y) #check if identity is needed
-
         x_prime =  tf.concat([x_emb, x_diff, x_n], axis=2) ### check what is happening with embedding
         query_x = tf.identity(x_prime)
         key_x = tf.identity(x_prime)
 
         ##### inputs for the MHA-XY head ######
-
-        y_prime = tf.concat([y,y_diff,d,y_n],axis=-1)
+        y_prime = tf.concat([y, y_diff, d, y_n],axis=-1)
         batch_s = tf.shape(y_prime)[0]
-        key_xy_label = tf.zeros((batch_s,n_C+n_T,1))
-        value_xy = tf.concat([y_prime,key_xy_label,x_prime],axis=-1)
+        key_xy_label = tf.zeros((batch_s, n_C+n_T, 1))
+        value_xy = tf.concat([y_prime, key_xy_label, x_prime],axis=-1)
         key_xy = tf.identity(value_xy)
 
-        query_xy_label = tf.concat([tf.zeros((batch_s,n_C,1)),tf.ones((batch_s,n_T,1))],axis=1)
-        y_prime_1 = tf.concat([y[:,:n_C],tf.zeros((batch_s,n_T,dim_y))],axis=1)
+        query_xy_label = tf.concat([tf.zeros((batch_s, n_C, 1)),tf.ones((batch_s, n_T, 1))], axis=1)
+        y_prime_masked = tf.concat([self.mask_target_pt([y, n_C, n_T, 1]), self.mask_target_pt([y_diff, n_C, n_T, dim_x]), self.mask_target_pt([d, n_C, n_T, 1]), y_n], axis=2)
 
-    
-        y_prime_2 = tf.concat([y_diff[:,:n_C],tf.zeros((batch_s,n_T,dim_y*dim_x))],axis=1)
-        y_prime_3 = tf.concat([d[:,:n_C],tf.zeros((batch_s,n_T,deriv_shape))],axis=1)
-        y_prime_masked = tf.concat([y_prime_1,y_prime_2,y_prime_3,y_n],axis=2)
-
-        query_xy = tf.concat([y_prime_masked,query_xy_label,x_prime],axis=-1)
+        query_xy = tf.concat([y_prime_masked, query_xy_label, x_prime],axis=-1)
 
         return query_x, key_x, value_x, query_xy, key_xy, value_xy
+
+    def mask_target_pt(self, inputs):
+        y, n_C, n_T, dim_x = inputs
+        dim_y = y.shape[-1]
+        batch_s = y.shape[0]
+
+        mask_y = tf.concat([y[:, :n_C], tf.zeros((batch_s, n_T, dim_y * dim_x))], axis=1)
+        return mask_y
     
-    def permute(self,inputs):
+    def permute(self, inputs):
 
-        x,y,n_C,n_T,num_permutation_repeats = inputs
+        x, y, n_C, n_T, num_permutation_repeats = inputs
 
-        if num_permutation_repeats <= 1:
-            return x,y
+        if (num_permutation_repeats <= 1):
+            return x, y
         
         else: 
             batch_size = x.shape[0]
             dim_x = x.shape[-1]
             dim_y = y.shape[-1]
 
-            permute_indices_a = tf.argsort(tf.random.uniform((num_permutation_repeats,n_T)),axis=-1)
-            permute_indices = tf.repeat(permute_indices_a,axis=0,repeats=batch_size)
-            repeated_x = tf.tile(x,multiples=[num_permutation_repeats,1,1])
-            repeated_y = tf.tile(y,multiples=[num_permutation_repeats,1,1])
+            permute_indices_a = tf.argsort(tf.random.uniform((num_permutation_repeats, n_T)), axis=-1)
+            permute_indices = tf.repeat(permute_indices_a, axis=0, repeats=batch_size)
+            repeated_x = tf.tile(x, multiples=[num_permutation_repeats, 1, 1])
+            repeated_y = tf.tile(y, multiples=[num_permutation_repeats, 1, 1])
 
-            selection_indices = tf.concat([tf.reshape(tf.repeat(tf.range(num_permutation_repeats*batch_size),n_T),(-1,1)),
-                                tf.reshape(permute_indices,(-1, 1))],axis=1)
+            selection_indices = tf.concat([tf.reshape(tf.repeat(tf.range(num_permutation_repeats * batch_size), n_T), (-1, 1)),
+                                tf.reshape(permute_indices, (-1, 1))], axis=1)
 
-            x_target = tf.reshape(tf.gather_nd(repeated_x[:,n_C:],selection_indices),(num_permutation_repeats*batch_size,n_T,dim_x))
-            y_target = tf.reshape(tf.gather_nd(repeated_y[:,n_C:],selection_indices),(num_permutation_repeats*batch_size,n_T,dim_y))
+            x_target = tf.reshape(tf.gather_nd(repeated_x[:, n_C:], selection_indices), (num_permutation_repeats * batch_size, n_T, dim_x))
+            y_target = tf.reshape(tf.gather_nd(repeated_y[:, n_C:], selection_indices), (num_permutation_repeats * batch_size, n_T, dim_y))
 
-            x_permuted = tf.concat([repeated_x[:,:n_C],x_target],axis=1)
-            y_permuted = tf.concat([repeated_y[:,:n_C],y_target],axis=1)
-            return x_permuted,y_permuted
+            x_permuted = tf.concat([repeated_x[:, :n_C], x_target], axis=1)
+            y_permuted = tf.concat([repeated_y[:, :n_C], y_target], axis=1)
+            return x_permuted, y_permuted
         
         
-    def PE(self,inputs):  # return.shape=(T,B,d)
-        # t.shape=(T,B)   T=sequence_length, B=batch_size
-        """A position-embedder, similar to the Attention paper, but tweaked to account for
-        floating point positions, rather than integer.
-
+    def PE(self, inputs):  # return.shape=(T,B,d)
         """
-
+        # t.shape=(T,B)   T=sequence_length, B=batch_size
+        A position-embedder, similar to the Attention paper, but tweaked to account for
+        floating point positions, rather than integer.
+        """
         x, enc_dim, xΔmin, xmax = inputs
 
         R = xmax / xΔmin * 100
-        drange_even = tf.cast(xΔmin * R**(tf.range(0,enc_dim,2)/enc_dim),"float32")
-        drange_odd = tf.cast(xΔmin * R**((tf.range(1,enc_dim,2) - 1)/enc_dim),"float32")
+        drange_even = tf.cast(xΔmin * R**(tf.range(0,enc_dim,2) / enc_dim),"float32")
+        drange_odd = tf.cast(xΔmin * R**((tf.range(1,enc_dim,2) - 1) / enc_dim),"float32")
         x = tf.concat([tf.math.sin(x / drange_even), tf.math.cos(x / drange_odd)], axis=2)
         return x            
 
@@ -92,45 +87,34 @@ class DE(tf.keras.layers.Layer):
         self.batch_norm_layer = tf.keras.layers.BatchNormalization()
 
     def call(self, inputs):
-        y, x, n_C, n_T,training = inputs
+        y, x, n_C, n_T, training = inputs
 
-        if x.shape[-1] == 1:
-            y_diff,x_diff,derivative,x_n,y_n = self.derivative_function([ y, x, n_C, n_T])
+        if (x.shape[-1] == 1):
+            y_diff, x_diff, d, x_n, y_n = self.derivative_function([y, x, n_C, n_T])
         else: 
-            y_diff,x_diff,derivative,x_n,y_n = self.derivative_function_2d([ y, x, n_C, n_T])
+            y_diff, x_diff, d, x_n, y_n = self.derivative_function_2d([y, x, n_C, n_T])
 
-        derivative_new = tf.where(tf.math.is_nan(derivative), 10000.0, derivative)
-        derivative_new_2 = tf.where(tf.abs(derivative_new) > 200., 0., derivative_new)
-        derivative_scaled = self.batch_norm_layer(derivative_new_2,training=training)
+        d_1 = tf.where(tf.math.is_nan(d), 10000.0, d)
+        d_2 = tf.where(tf.abs(d) > 200., 0., d)
+        d = self.batch_norm_layer(d_2, training=training)
 
-        # if tf.math.reduce_any(derivative_new != derivative_new_2):
-        #     # you will need a label as some of the derivatives aren't "real"
-        #     label_deriv = tf.cast(derivative_new_2 == derivative_new,"float32")
-        #     derivative_scaled_new = tf.concat([derivative_scaled,label_deriv],axis=-1)
-        #     #why does the shape of derivative scaled go to none if we don't rename?
-        #     print("if loop")
-        # else:
-        #     derivative_scaled_new = derivative_scaled
-        #     print("else loop")
+        d_label = tf.cast(tf.math.equal(d_2, d_1), "float32")
+        d = tf.concat([d, d_label], axis=-1)
 
-        # print(derivative_scaled_new.shape)
-
-        ###### need to fix this problem - function works when it is called in the notebook but not here
-
-        return y_diff,x_diff,derivative_scaled,x_n,y_n
+        return y_diff, x_diff, d, x_n, y_n
 
  ############ check what to do for 2d derivatives - should y diff just be for one point? for residual trick that would make most sense.
  #### but you need mutli-dimensional y for the derivative
 
  ###### and explain why we do this
 
-    def derivative_function(self,inputs):
+    def derivative_function(self, inputs):
         
-        y_values,x_values,context_n,target_m = inputs
+        y_values, x_values, context_n, target_m = inputs
 
         epsilon = 0.000002 
 
-        batch_size,length = y_values.shape[0],context_n + target_m
+        batch_size = y_values.shape[0]
 
         dim_x = x_values.shape[-1]
         dim_y = y_values.shape[-1]
@@ -138,14 +122,14 @@ class DE(tf.keras.layers.Layer):
 
         #context section
 
-        current_x = tf.expand_dims(x_values[:,:context_n],axis=2)
-        current_y = tf.expand_dims(y_values[:,:context_n],axis=2)
+        current_x = tf.expand_dims(x_values[:, :context_n],axis=2)
+        current_y = tf.expand_dims(y_values[:, :context_n],axis=2)
 
         x_temp = x_values[:,:context_n]
-        x_temp = tf.repeat(tf.expand_dims(x_temp,axis=1),axis=1,repeats=context_n)
+        x_temp = tf.repeat(tf.expand_dims(x_temp, axis=1), axis=1, repeats=context_n)
         
         y_temp = y_values[:,:context_n]
-        y_temp = tf.repeat(tf.expand_dims(y_temp,axis=1),axis=1,repeats=context_n)
+        y_temp = tf.repeat(tf.expand_dims(y_temp, axis=1), axis=1, repeats=context_n)
         
 
         ix = tf.argsort(tf.math.reduce_euclidean_norm((current_x - x_temp),axis=-1),axis=-1)[:,:,1]        
@@ -366,32 +350,6 @@ class DE(tf.keras.layers.Layer):
 
 
 
-
-# def make_features(t, y, num_context_points, batch_s=32):
-#     x = PE(t, d=28, TΔmin=0.1, Tmax=2)
-    
-#     value_x = y[:, :, np.newaxis]
-#     context_points = int(context_points)
-
-#     mask = np.tri(y.shape[1], y.shape[1], 0) - np.eye(y.shape[1])
-#     mask[:context_points, :context_points] = 1 
-#     mask = np.repeat(mask[np.newaxis, :, :], batch_s, axis=0)
-
-#     diff_y, diff_x, d, x_n, y_n = DE(y, t, context_points, embed=True)
-#     y_prime = np.concatenate([y[:, :, np.newaxis], diff_y.reshape(batch_s, -1, 1), d.reshape(batch_s, -1, 1), y_n.reshape(batch_s, -1, 1)], axis=2)
-#     query_x = key_x = x_prime = np.concatenate([x, diff_x, x_n], axis=2)
-    
-#     query_xy_label = np.ones((batch_s, y.shape[1], 1))
-#     key_xy_label = np.concatenate([np.ones((batch_s, context_points, 1)), np.zeros((batch_s, y.shape[1]-context_points, 1))], axis=1)
-
-
-#     key_xy = value_xy = np.concatenate([y_prime, key_xy_label, x_prime], axis=2)
-#     query_xy = np.concatenate([y_prime, query_xy_label, x_prime], axis=2)
-#     query_xy[:, context_points:, :3] = 0
-
-#     return query_x, key_x, value_x, query_xy, key_xy, value_xy, mask, y_n
-
-
 def PE(t, d=28, TΔmin=0.1, Tmax=2):  # return.shape=(T,B,d)
     # t.shape=(T,B)   T=sequence_length, B=batch_size
     """A position-embedder, similar to the Attention paper, but tweaked to account for
@@ -403,65 +361,6 @@ def PE(t, d=28, TΔmin=0.1, Tmax=2):  # return.shape=(T,B,d)
     x = np.concatenate([np.sin(t[:,:,None] / drange_even), np.cos(t[:,:,None] / drange_odd)], 2)
     return x
 
-
-# def DE(ŷ, x̂, c, embed=False):
-#     d=1
-#     if embed:
-#         d=28
-    
-#     m, n = ŷ.shape[0], ŷ.shape[1]
-#     diff_y = np.zeros((m , n))
-#     diff_x = np.zeros((m, n, d))
-#     dd = np.zeros((m, n))
-#     y_n = np.zeros((m , n))
-#     x_n = np.zeros((m , n, d))
-    
-#     for i in range(m):
-#         for j in range(c):
-#             current_x = (x̂[i, :c][j])
-#             current_y = ŷ[i, :c][j]
-#             x_temp = (x̂[i, :c])
-#             y_temp = ŷ[i , :c]
-#             ix = np.argsort(np.abs(current_x - x_temp))[1] 
-
-#             x_rep = current_x - x_temp[ix]
-#             y_rep = current_y - y_temp[ix]
-#             deriv = y_rep / (x_rep + 0.0001)
-            
-#             diff_y[i, j] = y_rep
-#             diff_x[i, j, :] = x_rep
-#             x_n[i, j, :] = x_temp[ix]
-#             if embed:
-#                 diff_x[i, j, :] = PE(np.array([current_x])[:, np.newaxis]) -  PE(np.array([x_temp[ix]])[:, np.newaxis])
-#                 x_n[i, j, :] = PE(np.array([x_temp[ix]])[:, np.newaxis])
-            
-#             dd[i, j] = deriv
-#             y_n[i, j] = y_temp[ix]
-        
-#         for j in range(c, ŷ.shape[1]):
-    
-#             x_temp = x̂[i, :j+1]
-#             y_temp = ŷ[i , :j+1]
-
-#             ix = np.argmin(np.abs(x_temp[-1] - x_temp[:-1]))
-#             x_rep = x_temp[-1] - x_temp[ix]
-#             y_rep = y_temp[-1] - y_temp[ix]
-
-#             deriv = y_rep / (x_rep + 0.0001)
-            
-#             diff_y[i, j] = y_rep
-#             diff_x[i, j, :] = x_rep
-#             dd[i, j] = deriv
-#             x_n[i, j, :] = x_temp[ix]
-
-#             if embed:
-#                 diff_x[i, j, :] = PE(np.array([x_temp[-1]])[:, np.newaxis]) -  PE(np.array([x_temp[ix]])[:, np.newaxis])
-#                 x_n[i, j, :] = PE(np.array([x_temp[ix]])[:, np.newaxis])
-            
-            
-#             y_n[i, j] = y_temp[ix]
-
-#     return diff_y, diff_x, dd, x_n, y_n
 
 ## We will need the date information in a numeric version 
 def date_to_numeric(col):

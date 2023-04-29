@@ -8,8 +8,8 @@ from model.atp import ATP
 
 class atp_pipeline(keras.models.Model):
     
-    def __init__(self,num_heads=4,projection_shape_for_head=4,output_shape=64,rate=0.1,permutation_repeats=1,
-                 bound_std=False,num_layers=3,enc_dim=32,xmin=0.1,xmax=2,**kwargs):
+    def __init__(self,num_heads=4, projection_shape_for_head=4, output_shape=64, rate=0.1, permutation_repeats=1,
+                 bound_std=False, num_layers=3, enc_dim=32, xmin=0.1, xmax=2, **kwargs):
         super().__init__(**kwargs)
    
         self._permutation_repeats = permutation_repeats
@@ -30,10 +30,10 @@ class atp_pipeline(keras.models.Model):
         x = x[:,:n_C+n_T,:]
         y = y[:,:n_C+n_T,:]
             
-        x,y = self._feature_wrapper.permute([x,y,n_C,n_T,self._permutation_repeats]) ##### clean permute, and check permute target and/or context?
+        x,y = self._feature_wrapper.permute([x, y, n_C, n_T, self._permutation_repeats]) ##### clean permute, and check permute target and/or context?
         
-        x_emb = [self._feature_wrapper.PE([x[:,:,i][:,:,tf.newaxis],self.enc_dim,self.xmin,self.xmax]) for i in range(x.shape[-1])] 
-        x_emb = tf.concat(x_emb,axis=-1)
+        x_emb = [self._feature_wrapper.PE([x[:, :, i][:, :, tf.newaxis], self.enc_dim, self.xmin, self.xmax]) for i in range(x.shape[-1])] 
+        x_emb = tf.concat(x_emb, axis=-1)
 
         ######## make mask #######
         
@@ -45,16 +45,16 @@ class atp_pipeline(keras.models.Model):
         ######## create derivative ########
 
 
-        y_diff,x_diff,d,x_n,y_n = self._DE([y,x,n_C,n_T,training])
+        y_diff, x_diff, d, x_n, y_n = self._DE([y, x, n_C, n_T, training])
 
-        inputs_for_processing = [x_emb,y,y_diff,x_diff,d,x_n,y_n,n_C,n_T]
+        inputs_for_processing = [x_emb, y, y_diff, x_diff, d, x_n, y_n, n_C, n_T]
 
         query_x, key_x, value_x, query_xy, key_xy, value_xy = self._feature_wrapper(inputs_for_processing)
         
-        y_n_closest = y_n[:,:,:y.shape[-1]] #### need to update this based on how we pick closest point
+        y_n_closest = y_n[:, :, :y.shape[-1]] #### need to update this based on how we pick closest point
 
         μ, log_σ = self._atp([query_x, key_x, value_x, query_xy, key_xy, value_xy, mask, y_n_closest],training)
-        return μ[:,n_C:], log_σ[:,n_C:]
+        return μ[:,n_C:], log_σ[:, n_C:]
       
 
 
