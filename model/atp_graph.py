@@ -12,7 +12,7 @@ def build_graph():
 
             μ, log_σ = atp_model([x, y, n_C, n_T, training]) 
 
-            _, _, likpp, mse = losses.nll(y[:, n_C:n_T+n_C], μ, log_σ)
+            _, _, _, likpp, mse = losses.nll(y[:, n_C:n_T+n_C], μ, log_σ)
         
         gradients = tape.gradient(likpp, atp_model.trainable_variables)
         optimizer.apply_gradients(zip(gradients, atp_model.trainable_variables))

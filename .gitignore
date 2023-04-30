@@ -2,4 +2,5 @@
 *.csv
 testing_notebook.ipynb
 .ipynb_checkpoints*
+*.npy
 weights/*
