@@ -9,6 +9,7 @@ def batcher(t, y, idx_list, batch_s = 32, window = 288):
 
     input to forecast: (None, 1, 1) for t,y.
     input to NP tasks: (None, seq_len, 1) for t,y. window = 1.
+    idx_list: list of indices, must be ≤ full array - window length.
     '''
     
     

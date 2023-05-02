@@ -20,13 +20,8 @@ class ARIMA(tf.keras.Model):
 
     def call(self, input, training=True):
         
-        y_hat  = self.mu + self.d0(input) - self.q0(self.e)
-        
-
-        σ = tf.exp(log_σ)
-        if self.bound_std:
-
-            σ = 0.01 + 0.99 * tf.math.softplus(log_σ)
-
+        μ  = self.mu + self.d0(input) 
+        σ = self.q0(self.e)
         log_σ = tf.math.log(σ)
+        
         return μ, log_σ
