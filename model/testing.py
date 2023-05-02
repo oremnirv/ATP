@@ -11,7 +11,10 @@ import os
 
 # save_dir = "/users/omernivron/Documents/ATP/weights/forecasting/weather"
 
-def testing_multiple_times(inputs, save_dir, **kwargs):
+def testing_multiple_times(inputs, save_dir, times=5, **kwargs):
+    """
+    **kwargs are the parameters for the model pipline in a dictionary format.
+    """
     nll_list = []; mse_list = []
     num_epochs = 2;num_batches = 10; test_batch_s = 100
     num_heads=4; projection_shape_for_head=4; output_shape=64; rate=0.1; permutation_repeats=1;
@@ -27,7 +30,7 @@ def testing_multiple_times(inputs, save_dir, **kwargs):
         elif key == 'enc_dim': enc_dim = value
         elif key == 'xmin': xmin = value
         elif key == 'xmax': xmax = value
-    for run_num in range(50, 55):
+    for run_num in range(50, 50 + times):
         training_data_scaled, test_data_scaled = inputs
         step = 1
         run=run_num; 
