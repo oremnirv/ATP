@@ -2,17 +2,9 @@ import numpy as np
 import tensorflow as tf
 import pandas as pd
 
-class weather(tf.keras.layers.Layer):
-    def __init__(self,path_to_weather_data):
-        super().__init__()
-        self.path_to_weather_data = path_to_weather_data
+def weather_processor(path_to_weather_data):
 
-    def call(self,dummy_input):
-
-        ### see if we can remove need for dummy input 
-
-        
-        pd_array = pd.read_csv(self.path_to_weather_data)
+        pd_array = pd.read_csv(path_to_weather_data)
         data = np.array(pd_array)
         data[:,0] = np.linspace(-1,1,data.shape[0])
         data = data.astype("float32")
