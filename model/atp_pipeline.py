@@ -61,7 +61,7 @@ def instantiate_atp(dataset):
             
     if dataset == "weather":
         return atp_pipeline(num_heads=4, projection_shape_for_head=4, output_shape=64, rate=0.1, permutation_repeats=1,
-                 bound_std=False, num_layers=3, enc_dim=32, xmin=0.1, xmax=2, **kwargs)
+                 bound_std=False, num_layers=3, enc_dim=32, xmin=0.1, xmax=2)
     
     # if dataset == "electricity":
          
