@@ -1,6 +1,8 @@
 import tensorflow as tf
 from model import dot_prod
 
+########## need to switch the dropout to after the second dense layer in the FFN######
+
 class FFN_1(tf.keras.layers.Layer):
     def __init__(self, output_shape, dropout_rate=0.1):
         super(FFN_1, self).__init__()
@@ -158,6 +160,9 @@ class ATP(tf.keras.Model):
         for i in range(self.num_layers - 1):
             x  = self.mha_x_b[i](x, x, value_x, mask)
             xy_temp = xy[:, :]
+
+            ###### what is going on here?? why is there another skip ########
+            #### different to my implementation
             xy = xy + x
             xy  = self.mha_xy_b[i](xy, xy, xy, mask, xy_temp)
             if ((i < (self.num_layers - 2)) | (self.num_layers == 1)):
@@ -168,6 +173,7 @@ class ATP(tf.keras.Model):
 
         σ = tf.exp(log_σ)
         if self.bound_std:
+
             σ = 0.01 + 0.99 * tf.math.softplus(log_σ)
 
         log_σ = tf.math.log(σ)

@@ -57,4 +57,14 @@ class atp_pipeline(keras.models.Model):
         return μ[:,n_C:], log_σ[:, n_C:]
       
 
+def instantiate_atp(dataset):
+            
+    if dataset == "weather":
+        return atp_pipeline(num_heads=4, projection_shape_for_head=4, output_shape=64, rate=0.1, permutation_repeats=1,
+                 bound_std=False, num_layers=3, enc_dim=32, xmin=0.1, xmax=2, **kwargs)
+    
+    # if dataset == "electricity":
+         
+            
+        
 

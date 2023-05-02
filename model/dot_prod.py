@@ -38,7 +38,7 @@ class MultiHeadAttention(tf.keras.layers.Layer):
 
     def reshape_tensor(self, x, heads, flag):
         if flag:
-            # Tensor shape after reshaping and transposing: (batch_size, heads, seq_length, -1)
+            # Tensor shape after reshaping and transposing: (batch_size, seq_length, heads,-1)
             x = tf.reshape(x, shape=(tf.shape(x)[0], tf.shape(x)[1], heads, -1))
             x = tf.transpose(x, perm=(0, 2, 1, 3))
         else:

@@ -43,7 +43,7 @@ class feature_wrapper(tf.keras.layers.Layer):
 
         x, y, n_C, n_T, num_permutation_repeats = inputs
 
-        if (num_permutation_repeats <= 1):
+        if (num_permutation_repeats < 1):
             return x, y
         
         else: 
