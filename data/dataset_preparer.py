@@ -23,4 +23,4 @@ def weather_processor(path_to_weather_data):
         x_val, y_val = val_data_scaled[:,:1], val_data_scaled[:,-1:]
         x_test, y_test = test_data_scaled[:,:1], test_data_scaled[:,-1:]
 
-        return x_train, y_train, x_val, y_val, x_test, y_test
+        return x_train[:,:,np.newaxis], y_train[:,:,np.newaxis], x_val[:,:,np.newaxis], y_val[:,:,np.newaxis], x_test[:,:,np.newaxis], y_test[:,:,np.newaxis]
