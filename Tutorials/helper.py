@@ -2,16 +2,27 @@ import numpy as np
 import pandas as pd
 
 ### let's create data batches that fit the task
-def batcher(t, y, batch_s = 32, window = 288):
+def batcher(t, y, idx_list, batch_s = 32, window = 288):
     '''
     cutting one long array to sequences of length 'window'.
     'batch_s' must be ≤ full array - window length
+
+    input to forecast: (None, 1, 1) for t,y.
+    input to NP tasks: (None, seq_len, 1) for t,y.
     '''
+    
+    
+    if len(idx_list) < 1:
+        print("warning- you didn't loop over the correct range")
+        
+    
     batch_s = min(batch_s, y.shape[0]-window)    
-    idx = np.random.choice(np.arange(0, y.shape[0] - window), batch_s, replace=False)    
-    y = np.array([np.array(y)[i:i+window] for i in idx])
-    t = np.array([np.array(t)[i:i+window] for i in idx])
-    return t, y
+    idx = np.random.choice(len(idx_list), batch_s, replace = False)
+
+    y = np.array([np.array(y)[idx_list[i]:idx_list[i]+window, :, :] for i in idx])
+    t = np.array([np.array(t)[idx_list[i]:idx_list[i]+window, :, :] for i in idx])
+    for i in sorted(idx, reverse=True): del idx_list[i]
+    return t.squeeze(), y.squeeze(), idx_list
   ######## need to edit to make it clearer how to use the batcher so it returns what is desired
 
 ### It is usually helpful to make gaps during predictions as opposed to providing the full sequence. Let's then run the batcher outputs through a sampler 
