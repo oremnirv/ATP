@@ -29,6 +29,13 @@ if __name__ == "__main__":
     if args.dataset == "weather":
         x_train, y_train, x_val, y_val, x_test, y_test = dataset_preparer.weather_processor(path_to_weather_data="datasets/weather.csv") 
         save_dir = "weights/forecasting/weather"
+
+    elif args.dataset == "exchange":
+        x_train, y_train, x_val, y_val, x_test, y_test = dataset_preparer.exchange_processor(path_to_data="datasets/exchange.csv") 
+        save_dir = "weights/forecasting/exchange"
+        print('make sure to create the exchange folder in weights/forecasting/')
+    else: 
+        raise ValueError("Dataset not found")
         
     
     n_C = args.n_C
@@ -90,7 +97,7 @@ if __name__ == "__main__":
    
         
         idx_list = list(range(x_test.shape[0] - (n_C+n_T)))
-        num_batches = x_test.shape[0]//test_batch_s
+        num_batches = len(idx_list)//test_batch_s
 
         for _ in range(num_batches): #### specify correct number of batches for the batcher #####
             if(_ == (num_batches-1)): test_batch_s = len(idx_list)        

@@ -163,24 +163,6 @@ class ATP(tf.keras.Model):
 
     def call(self, input, training=True):
         query_x, key_x, value_x, query_xy, key_xy, value_xy, mask, y_n = input
-<<<<<<< HEAD
-        x = self.mha_x_a(query_x,key_x, value_x, mask, training=training)
-        # print(x[:, 110, 0])  # does not work in repeated runs
-        xy = self.mha_xy_a(query_xy, key_xy, value_xy, mask, training=training)
-        # print(xy[:, 110, 0])  # does not work in repeated runs
-
-        for i in range(self.num_layers - 1):
-            x  = self.mha_x_b[i](x, x, value_x, mask, training=training)
-            xy_temp = xy[:, :]
-
-            xy = xy + x
-            xy  = self.mha_xy_b[i](xy, xy, xy, mask, xy_temp, training=training)
-            if ((i < (self.num_layers - 2)) | (self.num_layers == 1)):
-                log_σ = self.dense_sigma(xy)
-
-        z = xy
-        # print(z[:, 110, 0])  # does not work in repeated runs
-=======
         x = self.mha_x_a(query_x,key_x, value_x, mask,training=training)
         xy = self.mha_xy_a(query_xy, key_xy, value_xy, mask,training=training)
 
@@ -200,7 +182,6 @@ class ATP(tf.keras.Model):
 
         z = xy + x
 
->>>>>>> 0f4ef25a73596bbdfad351e99f8fe67cdcb7e039
         μ = self.dense_last(z) + y_n
 
         σ = tf.exp(log_σ)
