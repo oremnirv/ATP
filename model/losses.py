@@ -11,6 +11,3 @@ def nll(y, μ, log_σ, ϵ=0.001):
     sum_mse = tf.math.reduce_sum(mse_per_point)
     
     return lik_per_point, sum_mse, sum_lik, tf.math.reduce_mean(lik_per_point), tf.math.reduce_mean(mse_per_point)
-
-######## check whether to optimize mean or sum of likelihood. and what do we do in the paper
-###########################################
