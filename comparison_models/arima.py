@@ -9,6 +9,7 @@ class AR(tf.keras.Model):
         # in literature num_ar_terms is called p
         self.num_ar_terms = num_ar_terms
         self.ar_terms = tf.keras.layers.Dense(num_ar_terms)
+        
 
     def call(self, input, training=True):
         μ  = self.ar_terms(input) 
@@ -20,11 +21,19 @@ class ARMA(tf.keras.Model):
          # in literature num_ar_terms is called p
          # in literature num_err_terms is called q
         self.num_ar_terms = num_ar_terms
+        self.num_err_terms = num_err_terms
         self.ar_terms = tf.keras.layers.Dense(num_ar_terms)
+        self.e = [tf.Variable(tf.random.normal([1], dtype=tf.float32))
+                   for _ in range(num_err_terms)]
 
     def call(self, input, training=True):
-        μ  = self.ar_terms(input) 
-        return μ
+        y = input
+        y_t = y[:, -1:]
+        μ_t  = self.ar_terms(input) 
+        σ_l_t = [tf.math.exp(self.e[i]) for i in range(self.num_err_terms)]
+        σ_l_t = tf.math.add_n(σ_l_t)
+
+        return μ_t, σ_l_t
 
 
 
