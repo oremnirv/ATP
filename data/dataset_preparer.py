@@ -19,8 +19,8 @@ def weather_processor(path_to_weather_data):
         val_data_scaled = (val_data - np.mean(training_data,axis=0))/np.std(training_data,axis=0)
         test_data_scaled =  (test_data - np.mean(training_data,axis=0))/np.std(training_data,axis=0)
 
-        x_train, y_train = training_data_scaled[:,:1], training_data_scaled[:,-1:]
-        x_val, y_val = val_data_scaled[:,:1], val_data_scaled[:,-1:]
-        x_test, y_test = test_data_scaled[:,:1], test_data_scaled[:,-1:]
+        x_train, y_train = training_data_scaled[:,:1], training_data_scaled[:,4:5]
+        x_val, y_val = val_data_scaled[:,:1], val_data_scaled[:,4:5]
+        x_test, y_test = test_data_scaled[:,:1], test_data_scaled[:,4:5]
 
         return x_train[:,:,np.newaxis], y_train[:,:,np.newaxis], x_val[:,:,np.newaxis], y_val[:,:,np.newaxis], x_test[:,:,np.newaxis], y_test[:,:,np.newaxis]
