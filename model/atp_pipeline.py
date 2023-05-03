@@ -29,8 +29,9 @@ class atp_pipeline(keras.models.Model):
 
         x = x[:,:n_C+n_T,:]
         y = y[:,:n_C+n_T,:]
-            
-        x,y = self._feature_wrapper.permute([x, y, n_C, n_T, self._permutation_repeats]) ##### clean permute, and check permute target and/or context?
+
+        if training == True:    
+            x,y = self._feature_wrapper.permute([x, y, n_C, n_T, self._permutation_repeats]) ##### clean permute, and check permute target and/or context?
         
         x_emb = [self._feature_wrapper.PE([x[:, :, i][:, :, tf.newaxis], self.enc_dim, self.xmin, self.xmax]) for i in range(x.shape[-1])] 
         x_emb = tf.concat(x_emb, axis=-1)
@@ -57,11 +58,13 @@ class atp_pipeline(keras.models.Model):
         return μ[:,n_C:], log_σ[:, n_C:]
       
 
-def instantiate_atp(dataset):
+def instantiate_atp(dataset,training=True):
             
     if dataset == "weather":
+
+
         return atp_pipeline(num_heads=4, projection_shape_for_head=4, output_shape=64, rate=0.1, permutation_repeats=1,
-                 bound_std=False, num_layers=3, enc_dim=32, xmin=0.1, xmax=2)
+                 bound_std=False, num_layers=2, enc_dim=32, xmin=0.1, xmax=2)
     
     # if dataset == "electricity":
          

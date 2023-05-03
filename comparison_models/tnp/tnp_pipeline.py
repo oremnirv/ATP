@@ -49,10 +49,12 @@ class tnp_pipeline(keras.models.Model):
 
             
 
-def instantiate_tnp(dataset):
+def instantiate_tnp(dataset,training=True):
             
     if dataset == "weather":
-        return tnp_pipeline(num_heads=4,projection_shape_for_head=4,output_shape=64, dropout_rate=0.0, 
+
+        return tnp_pipeline(num_heads=3,projection_shape_for_head=4,output_shape=64, dropout_rate=0.0, 
                  permutation_repeats=1,bound_std=False, num_layers=6,target_y_dim=1)
     
+
     # if dataset == "electricity":

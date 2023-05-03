@@ -154,21 +154,25 @@ class ATP(tf.keras.Model):
 
     def call(self, input, training=True):
         query_x, key_x, value_x, query_xy, key_xy, value_xy, mask, y_n = input
-        x = self.mha_x_a(query_x,key_x, value_x, mask)
-        xy = self.mha_xy_a(query_xy, key_xy, value_xy, mask)
+        x = self.mha_x_a(query_x,key_x, value_x, mask,training=training)
+        xy = self.mha_xy_a(query_xy, key_xy, value_xy, mask,training=training)
+
+        ##### new
 
         for i in range(self.num_layers - 1):
-            x  = self.mha_x_b[i](x, x, value_x, mask)
-            xy_temp = xy[:, :]
 
-            ###### what is going on here?? why is there another skip ########
-            #### different to my implementation
+            xy_temp = tf.identity(xy)
             xy = xy + x
-            xy  = self.mha_xy_b[i](xy, xy, xy, mask, xy_temp)
-            if ((i < (self.num_layers - 2)) | (self.num_layers == 1)):
+
+            xy  = self.mha_xy_b[i](xy, xy, xy, mask, xy_temp,training=training)
+            x  = self.mha_x_b[i](x, x, value_x, mask,training=training)
+
+            if ((i < (self.num_layers - 2)) | (self.num_layers <= 2)):
                 log_σ = self.dense_sigma(xy)
 
-        z = xy
+
+        z = xy + x
+
         μ = self.dense_last(z) + y_n
 
         σ = tf.exp(log_σ)
