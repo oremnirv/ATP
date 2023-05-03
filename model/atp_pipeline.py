@@ -11,6 +11,7 @@ class atp_pipeline(keras.models.Model):
     def __init__(self, num_heads=4, projection_shape_for_head=4, output_shape=64, rate=0.1, permutation_repeats=1,
                  bound_std=False, num_layers=3, enc_dim=32, xmin=0.1, xmax=2, **kwargs):
         super().__init__(**kwargs)
+        # for testing set permutation_repeats=0
    
         self._permutation_repeats = permutation_repeats
         self.enc_dim = enc_dim
@@ -53,8 +54,11 @@ class atp_pipeline(keras.models.Model):
         
         y_n_closest = y_n[:, :, :y.shape[-1]] #### need to update this based on how we pick closest point
 
-        μ, log_σ = self._atp([query_x, key_x, value_x, query_xy, key_xy, value_xy, mask, y_n_closest],training)
-        return μ[:,n_C:], log_σ[:, n_C:]
+        μ, log_σ = self._atp([query_x, key_x, value_x, query_xy, key_xy, value_xy, mask, y_n_closest],training=training)
+        # print(μ[:, n_C])
+        # print(μ[:, n_C].shape)
+
+        return μ[:, n_C:], log_σ[:, n_C:]
       
 
 def instantiate_atp(dataset):

@@ -52,6 +52,7 @@ class feature_wrapper(tf.keras.layers.Layer):
             dim_y = y.shape[-1]
 
             permute_indices_a = tf.argsort(tf.random.uniform((num_permutation_repeats, n_T)), axis=-1)
+            print(permute_indices_a)
             permute_indices = tf.repeat(permute_indices_a, axis=0, repeats=batch_size)
             repeated_x = tf.tile(x, multiples=[num_permutation_repeats, 1, 1])
             repeated_y = tf.tile(y, multiples=[num_permutation_repeats, 1, 1])
@@ -88,6 +89,7 @@ class DE(tf.keras.layers.Layer):
 
     def call(self, inputs):
         y, x, n_C, n_T, training = inputs
+        print(training)
 
         if (x.shape[-1] == 1):
             y_diff, x_diff, d, x_n, y_n = self.derivative_function([y, x, n_C, n_T])
@@ -243,6 +245,7 @@ class DE(tf.keras.layers.Layer):
             x_closest_1 = tf.reshape(tf.gather_nd(tf.reshape(x_temp,(-1,context_n,dim_x)),selection_indices_1),
                                 (batch_size,context_n,dim_x)) +   tf.random.normal(shape=(batch_size,context_n,dim_x),stddev=0.01)
 
+            print(x_closest_1.shape)
             x_closest_2 = tf.reshape(tf.gather_nd(tf.reshape(x_temp,(-1,context_n,dim_x)),selection_indices_2),
                                 (batch_size,context_n,dim_x)) +   tf.random.normal(shape=(batch_size,context_n,dim_x),stddev=0.01)
 
@@ -350,16 +353,16 @@ class DE(tf.keras.layers.Layer):
 
 
 
-def PE(t, d=28, TΔmin=0.1, Tmax=2):  # return.shape=(T,B,d)
-    # t.shape=(T,B)   T=sequence_length, B=batch_size
-    """A position-embedder, similar to the Attention paper, but tweaked to account for
-    floating point positions, rather than integer.
-    """
-    R = Tmax / TΔmin * 100
-    drange_even = TΔmin * R**(np.arange(0,d,2)/d)
-    drange_odd = TΔmin * R**((np.arange(1,d,2) - 1)/d)
-    x = np.concatenate([np.sin(t[:,:,None] / drange_even), np.cos(t[:,:,None] / drange_odd)], 2)
-    return x
+# def PE(t, d=28, TΔmin=0.1, Tmax=2):  # return.shape=(T,B,d)
+#     # t.shape=(T,B)   T=sequence_length, B=batch_size
+#     """A position-embedder, similar to the Attention paper, but tweaked to account for
+#     floating point positions, rather than integer.
+#     """
+#     R = Tmax / TΔmin * 100
+#     drange_even = TΔmin * R**(np.arange(0,d,2)/d)
+#     drange_odd = TΔmin * R**((np.arange(1,d,2) - 1)/d)
+#     x = np.concatenate([np.sin(t[:,:,None] / drange_even), np.cos(t[:,:,None] / drange_odd)], 2)
+#     return x
 
 
 ## We will need the date information in a numeric version 
