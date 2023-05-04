@@ -70,7 +70,18 @@ def instantiate_atp(dataset,training=True):
         return atp_pipeline(num_heads=4, projection_shape_for_head=4, output_shape=64, rate=0.1, permutation_repeats=1,
                  bound_std=False, num_layers=2, enc_dim=32, xmin=0.1, xmax=2)
     
-    # if dataset == "electricity":
+    elif dataset == "ETT":
+        return atp_pipeline(num_heads=4, projection_shape_for_head=4, output_shape=64, rate=0.1, permutation_repeats=1,
+                    bound_std=False, num_layers=2, enc_dim=32, xmin=0.1, xmax=2)
+    elif dataset == "traffic":
+        return atp_pipeline(num_heads=4, projection_shape_for_head=4, output_shape=64, rate=0.1, permutation_repeats=1,
+                    bound_std=False, num_layers=2, enc_dim=32, xmin=0.1, xmax=2)
+    elif dataset == "exchange":
+        return atp_pipeline(num_heads=4, projection_shape_for_head=4, output_shape=64, rate=0.1, permutation_repeats=1,
+                    bound_std=False, num_layers=2, enc_dim=32, xmin=0.1, xmax=2)
+    else:
+        print('choose a valid dataset name')
+    
          
             
         

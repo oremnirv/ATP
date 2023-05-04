@@ -31,9 +31,14 @@ if __name__ == "__main__":
         save_dir = "weights/forecasting/weather"
 
     elif args.dataset == "exchange":
-        x_train, y_train, x_val, y_val, x_test, y_test = dataset_preparer.exchange_processor(path_to_data="datasets/exchange.csv") 
+        x_train, y_train, x_val, y_val, x_test, y_test = dataset_preparer.dataset_processor(path_to_data="datasets/exchange.csv") 
         save_dir = "weights/forecasting/exchange"
         print('make sure to create the exchange folder in weights/forecasting/')
+    
+    elif args.dataset == "ETT":
+        x_train, y_train, x_val, y_val, x_test, y_test = dataset_preparer.dataset_processor(path_to_data="datasets/ETTm2.csv") 
+        save_dir = "weights/forecasting/ETT"
+        print('make sure to create the ETT folder in weights/forecasting/')
     else: 
         raise ValueError("Dataset not found")
         
