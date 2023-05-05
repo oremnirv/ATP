@@ -23,8 +23,9 @@ class tnp_pipeline(keras.models.Model):
 
         x = x[:,:n_C+n_T,:]
         y = y[:,:n_C+n_T,:]
-            
-        x,y = self._feature_wrapper.permute([x, y, n_C, n_T, self._permutation_repeats]) ##### clean permute, and check permute target and/or context?
+
+        if training == True:    
+            x,y = self._feature_wrapper.permute([x, y, n_C, n_T, self._permutation_repeats]) ##### clean permute, and check permute target and/or context?
 
         ######## make mask #######
 
@@ -57,4 +58,7 @@ def instantiate_tnp(dataset,training=True):
                  permutation_repeats=1,bound_std=False, num_layers=6,target_y_dim=1)
     
 
-    # if dataset == "electricity":
+    if dataset == "exchange":
+
+        return tnp_pipeline(num_heads=6,projection_shape_for_head=12,output_shape=16, dropout_rate=0.4, 
+                 permutation_repeats=1,bound_std=False, num_layers=6,target_y_dim=1)

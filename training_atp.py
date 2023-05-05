@@ -1,8 +1,7 @@
+#!/usr/bin/env python
+
 from model import atp_graph, losses
-from data import synthetic_data_gen, feature_extractor
-import keras
 import numpy as np
-import pandas as pd
 import tensorflow as tf
 from model import atp_pipeline
 from comparison_models.tnp import tnp_pipeline
@@ -17,11 +16,11 @@ if __name__ == "__main__":
 
     parser.add_argument("dataset", type=str, help="dataset")
     parser.add_argument("model", type=str, help="model")
-    # parser.add_argument("type_model", type=str, help="type of np model")
     parser.add_argument("iterations", type=int, help="number of iterations for training")
     parser.add_argument("num_repeats", type=int, help="number of random seed repeats")
     parser.add_argument("n_C",type=int,help = "context")
     parser.add_argument("n_T",type=int,help = "target")
+    parser.add_argument("run",type=int,help = "run number")
     
 
     args = parser.parse_args()
@@ -29,6 +28,15 @@ if __name__ == "__main__":
     if args.dataset == "weather":
         x_train, y_train, x_val, y_val, x_test, y_test = dataset_preparer.weather_processor(path_to_weather_data="datasets/weather.csv") 
         save_dir = "weights/forecasting/weather"
+
+    elif args.dataset == "exchange":
+        x_train, y_train, x_val, y_val, x_test, y_test = dataset_preparer.exchange_processor(path_to_data="datasets/exchange.csv") 
+        save_dir = "weights/forecasting/exchange"
+        print('make sure to create the exchange folder in weights/forecasting/')
+    else: 
+        raise ValueError("Dataset not found")
+    
+    save_dir = save_dir + "/" + args.model
         
     
     n_C = args.n_C
@@ -40,10 +48,10 @@ if __name__ == "__main__":
     nll_list = []
     mse_list = []
 
-    for i in range(args.num_repeats):
+    for repeat in range(args.num_repeats):
 
         step = 1
-        run= 50 + i
+        run= args.run + repeat
         tf.random.set_seed(run)
 
         if args.model == "atp":
@@ -66,7 +74,8 @@ if __name__ == "__main__":
         sum_mse_tot = 0; sum_nll_tot = 0
         mini = 50000
 
-        
+        validation_losses = []
+
         for i in range(args.iterations):
             idx_list = list(range(x_train.shape[0] - (n_C+n_T)))
             x,y,_ = batcher(x_train,y_train,idx_list,window=n_C+n_T) ####### generalise for not just forecasting
@@ -77,6 +86,10 @@ if __name__ == "__main__":
                 t_te,y_te,_ = batcher(x_val,y_val,idx_list,batch_s = 100,window=n_C+n_T)
                 μ, log_σ = model([t_te, y_te, n_C, n_T, False])
                 _,_,_, nll_pp_te, msex_te = losses.nll(y_te[:, n_C:n_C+n_T], μ, log_σ)
+
+                validation_losses.append(nll_pp_te)
+
+                np.save(folder + "/validation_losses_iteration_"+str(repeat),np.array(validation_losses))
 
                 if nll_pp_te < mini:
                     mini = nll_pp_te
@@ -90,7 +103,7 @@ if __name__ == "__main__":
    
         
         idx_list = list(range(x_test.shape[0] - (n_C+n_T)))
-        num_batches = x_test.shape[0]//test_batch_s
+        num_batches = len(idx_list)//test_batch_s
 
         for _ in range(num_batches): #### specify correct number of batches for the batcher #####
             if(_ == (num_batches-1)): test_batch_s = len(idx_list)        
