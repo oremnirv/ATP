@@ -6,6 +6,7 @@ import pandas as pd
 import tensorflow as tf
 from model import atp_pipeline
 from comparison_models.tnp import tnp_pipeline
+from comparison_models.gru import gru_pipeline
 from data import dataset_preparer
 import argparse
 from Tutorials.helper import batcher
@@ -64,8 +65,12 @@ if __name__ == "__main__":
         if args.model == "tnp":
             model = tnp_pipeline.instantiate_tnp(args.dataset)
 
-        tr_step = atp_graph.build_graph()
+        if args.model == "gru":
+            model = gru_pipeline.instantiate_gru(args.dataset)
+            print('fails if doesnt have tf.device("/CPU:0") before training loop starts')
 
+        tr_step = atp_graph.build_graph()
+        
         ###### can we put the name of the model into the folder name #########?
 
         name_comp = 'run_' + str(run)
