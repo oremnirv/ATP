@@ -356,19 +356,8 @@ class DE(tf.keras.layers.Layer):
 
 
 
-# def PE(t,  d=28,  TΔmin=0.1,  Tmax=2):  # return.shape=(T, B, d)
-#     # t.shape=(T, B)   T=sequence_length,  B=batch_size
-#     """A position-embedder,  similar to the Attention paper,  but tweaked to account for
-#     floating point positions,  rather than integer.
-#     """
-#     R = Tmax / TΔmin * 100
-#     drange_even = TΔmin * R**(np.arange(0, d, 2)/d)
-#     drange_odd = TΔmin * R**((np.arange(1, d, 2) - 1)/d)
-#     x = np.concatenate([np.sin(t[:, :, None] / drange_even),  np.cos(t[:, :, None] / drange_odd)],  2)
-#     return x
 
-
-## We will need the date information in a numeric version 
-def date_to_numeric(col):
-    datetime = pd.to_datetime(col)
-    return datetime.dt.hour,  datetime.dt.day,  datetime.dt.month,  datetime.dt.year
+# ## We will need the date information in a numeric version 
+# def date_to_numeric(col):
+#     datetime = pd.to_datetime(col)
+#     return datetime.dt.hour,  datetime.dt.day,  datetime.dt.month,  datetime.dt.year

@@ -1,11 +1,8 @@
 #!/usr/bin/env python
 
 from model import atp_graph, losses
-<<<<<<< HEAD
-=======
 from data_wrangler import synthetic_data_gen, feature_extractor
 import keras
->>>>>>> f4b8ea4116258efac743748eef7ca2bfd8619081
 import numpy as np
 import tensorflow as tf
 from model import atp_pipeline
@@ -97,7 +94,7 @@ if __name__ == "__main__":
         for i in range(args.iterations):
             idx_list = list(range(x_train.shape[0] - (n_C+n_T)))
             x,y,_ = batcher(x_train,y_train,idx_list,window=n_C+n_T) ####### generalise for not just forecasting
-            x = np.repeat(np.linspace(-1,1,(n_C+n_T))[np.newaxis,:,np.newaxis],axis=0,repeats=batch_size)
+            x = np.repeat(np.linspace(-1,1,(n_C+n_T))[np.newaxis,:, np.newaxis], axis=0, repeats=batch_size) # it doesnt matter what the time is, just the relation between the times.
             #### edit batcher to fix this
             _,_, _, _ = tr_step(model, opt, x,y,n_C,n_T, training=True)
 

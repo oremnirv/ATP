@@ -3,7 +3,7 @@ from tensorflow import keras
 from comparison_models.tnp.tnp import TNP_Decoder
 import sys
 sys.path.append("../../")
-from data.feature_extractor import feature_wrapper
+from data_wrangler.feature_extractor import feature_wrapper
 
 
 class tnp_pipeline(keras.models.Model):
