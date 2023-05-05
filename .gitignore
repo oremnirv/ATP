@@ -7,4 +7,5 @@ weights/*
 slurm_scripts/*
 Untitled*.ipynb
 arima.ipynb
-```
+ETTm2.ipynb
+autoformer_192.ipynb

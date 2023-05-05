@@ -16,7 +16,7 @@ class tnp_pipeline(keras.models.Model):
         self._tnp = TNP_Decoder(output_shape=output_shape,num_layers=num_layers,projection_shape=int(projection_shape_for_head*num_heads),
                  num_heads=num_heads,dropout_rate=dropout_rate,target_y_dim=target_y_dim,bound_std=bound_std)
 
-    def call(self,inputs):
+    def call(self, inputs):
 
         x, y, n_C, n_T, training = inputs
         #x and y have shape batch size x length x dim

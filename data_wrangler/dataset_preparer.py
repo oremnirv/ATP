@@ -27,7 +27,8 @@ def weather_processor(path_to_weather_data):
         return x_train[:,:,np.newaxis], y_train[:,:,np.newaxis], x_val[:,:,np.newaxis], y_val[:,:,np.newaxis], x_test[:,:,np.newaxis], y_test[:,:,np.newaxis]
 
 
-def exchange_processor(path_to_data):
+def dataset_processor(path_to_data):
+        # works for exchange and ETTm2 dataset w/o extra features 
 
         pd_array = pd.read_csv(path_to_data)
         data = np.array(pd_array)

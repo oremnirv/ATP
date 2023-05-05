@@ -1,11 +1,17 @@
 #!/usr/bin/env python
 
 from model import atp_graph, losses
+<<<<<<< HEAD
+=======
+from data_wrangler import synthetic_data_gen, feature_extractor
+import keras
+>>>>>>> f4b8ea4116258efac743748eef7ca2bfd8619081
 import numpy as np
 import tensorflow as tf
 from model import atp_pipeline
 from comparison_models.tnp import tnp_pipeline
-from data import dataset_preparer
+from comparison_models.gru import gru_pipeline
+from data_wrangler import dataset_preparer
 import argparse
 from Tutorials.helper import batcher
 import os
@@ -30,9 +36,14 @@ if __name__ == "__main__":
         save_dir = "weights/forecasting/weather"
 
     elif args.dataset == "exchange":
-        x_train, y_train, x_val, y_val, x_test, y_test = dataset_preparer.exchange_processor(path_to_data="datasets/exchange.csv") 
+        x_train, y_train, x_val, y_val, x_test, y_test = dataset_preparer.dataset_processor(path_to_data="datasets/exchange.csv") 
         save_dir = "weights/forecasting/exchange"
         print('make sure to create the exchange folder in weights/forecasting/')
+    
+    elif args.dataset == "ETT":
+        x_train, y_train, x_val, y_val, x_test, y_test = dataset_preparer.dataset_processor(path_to_data="datasets/ETTm2.csv") 
+        save_dir = "weights/forecasting/ETT"
+        print('make sure to create the ETT folder in weights/forecasting/')
     else: 
         raise ValueError("Dataset not found")
     
@@ -56,12 +67,19 @@ if __name__ == "__main__":
 
         if args.model == "atp":
             model = atp_pipeline.instantiate_atp(args.dataset)
+            save_dir = save_dir + '/atp'
         
         if args.model == "tnp":
             model = tnp_pipeline.instantiate_tnp(args.dataset)
+            save_dir = save_dir + '/tnp'
+
+        if args.model == "gru":
+            model = gru_pipeline.instantiate_gru(args.dataset)
+            save_dir = save_dir + '/gru'
+            print('fails if doesnt have tf.device("/CPU:0") before training loop starts')
 
         tr_step = atp_graph.build_graph()
-
+        
         ###### can we put the name of the model into the folder name #########?
 
         name_comp = 'run_' + str(run)
