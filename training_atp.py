@@ -36,7 +36,7 @@ if __name__ == "__main__":
     else: 
         raise ValueError("Dataset not found")
     
-    save_dir = save_dir + "/" + args.model
+    save_dir = save_dir + "/" + args.model + '/' + str(args.n_T)
         
     
     n_C = args.n_C
@@ -79,17 +79,20 @@ if __name__ == "__main__":
         for i in range(args.iterations):
             idx_list = list(range(x_train.shape[0] - (n_C+n_T)))
             x,y,_ = batcher(x_train,y_train,idx_list,window=n_C+n_T) ####### generalise for not just forecasting
+            x = np.repeat(np.linspace(-1,1,(n_C+n_T))[np.newaxis,:,np.newaxis],axis=0,repeats=batch_size)
+            #### edit batcher to fix this
             _,_, _, _ = tr_step(model, opt, x,y,n_C,n_T, training=True)
 
             if i % 100 == 0:
                 idx_list = list(range(x_val.shape[0] - (n_C+n_T)))
                 t_te,y_te,_ = batcher(x_val,y_val,idx_list,batch_s = 100,window=n_C+n_T)
+                t_te = np.repeat(np.linspace(-1,1,(n_C+n_T))[np.newaxis,:,np.newaxis],axis=0,repeats=100)
                 μ, log_σ = model([t_te, y_te, n_C, n_T, False])
                 _,_,_, nll_pp_te, msex_te = losses.nll(y_te[:, n_C:n_C+n_T], μ, log_σ)
 
                 validation_losses.append(nll_pp_te)
 
-                np.save(folder + "/validation_losses_iteration_"+str(repeat),np.array(validation_losses))
+                np.save(folder + "/validation_losses_iteration",np.array(validation_losses))
 
                 if nll_pp_te < mini:
                     mini = nll_pp_te
@@ -101,13 +104,14 @@ if __name__ == "__main__":
         manager = tf.train.CheckpointManager(ckpt, folder, max_to_keep=1)
         ckpt.restore(manager.latest_checkpoint) 
    
-        
+        test_batch_s = 100 #need to specify this as it gets changed in the loop below
         idx_list = list(range(x_test.shape[0] - (n_C+n_T)))
         num_batches = len(idx_list)//test_batch_s
 
         for _ in range(num_batches): #### specify correct number of batches for the batcher #####
             if(_ == (num_batches-1)): test_batch_s = len(idx_list)        
             t_te,y_te,idx_list = batcher(x_test, y_test, idx_list,batch_s = test_batch_s, window=n_C+n_T)
+            t_te = np.repeat(np.linspace(-1,1,(n_C+n_T))[np.newaxis,:,np.newaxis],axis=0,repeats=y_te.shape[0])
             μ, log_σ = model([t_te, y_te, n_C, n_T, False])
             _, sum_mse, sum_nll, _, _ = losses.nll(y_te[:, n_C:n_C+n_T], μ, log_σ)
             sum_nll_tot += sum_nll / n_T

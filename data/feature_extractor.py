@@ -89,7 +89,7 @@ class DE(tf.keras.layers.Layer):
 
     def call(self, inputs):
         y, x, n_C, n_T, training = inputs
-        print(training)
+        # print(training)
 
         if (x.shape[-1] == 1):
             y_diff, x_diff, d, x_n, y_n = self.derivative_function([y, x, n_C, n_T])

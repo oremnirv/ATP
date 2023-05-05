@@ -4,3 +4,7 @@ testing_notebook.ipynb
 .ipynb_checkpoints*
 *.npy
 weights/*
+slurm_scripts/*
+Untitled*.ipynb
+arima.ipynb
+```

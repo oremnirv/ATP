@@ -7,6 +7,7 @@ def weather_processor(path_to_weather_data):
         pd_array = pd.read_csv(path_to_weather_data)
         data = np.array(pd_array)
         data[:,0] = np.linspace(-1,1,data.shape[0])
+        # we need to have it between -1 to 1 for each batch item not just overall!!!!!!!!
         data = data.astype("float32")
 
         training_data = data[:int(0.7*data.shape[0])]
@@ -31,6 +32,8 @@ def exchange_processor(path_to_data):
         pd_array = pd.read_csv(path_to_data)
         data = np.array(pd_array)
         data[:,0] = np.linspace(-1,1,data.shape[0])
+        # we need to have it between -1 to 1 for each batch item not just overall!!!!!!!!
+
         data = data.astype("float32")
 
         training_data = data[:int(0.7*data.shape[0])]

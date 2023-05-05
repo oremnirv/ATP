@@ -67,10 +67,13 @@ def instantiate_atp(dataset,training=True):
     if dataset == "weather":
 
 
-        return atp_pipeline(num_heads=4, projection_shape_for_head=4, output_shape=64, rate=0.1, permutation_repeats=1,
+        return atp_pipeline(num_heads=4, projection_shape_for_head=4, output_shape=64, rate=0.1, permutation_repeats=0,
                  bound_std=False, num_layers=2, enc_dim=32, xmin=0.1, xmax=2)
     
-    # if dataset == "electricity":
+    if dataset == "exchange":
+
+        return atp_pipeline(num_heads=6, projection_shape_for_head=12, output_shape=32, rate=0.0, permutation_repeats=0,
+                 bound_std=False, num_layers=4, enc_dim=32, xmin=0.1, xmax=1)
          
             
         
