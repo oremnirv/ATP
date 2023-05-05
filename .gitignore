@@ -4,3 +4,4 @@ testing_notebook.ipynb
 .ipynb_checkpoints*
 *.npy
 weights/*
+ETTm2.ipynb

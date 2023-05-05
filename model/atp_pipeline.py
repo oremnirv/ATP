@@ -1,7 +1,7 @@
 import tensorflow as tf
 from tensorflow import keras
 import numpy as np
-from data.feature_extractor import  DE, feature_wrapper
+from data_wrangler.feature_extractor import  DE, feature_wrapper
 from model.atp import ATP
 
 

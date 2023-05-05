@@ -1,5 +1,5 @@
 from model import atp_graph, losses
-from data import synthetic_data_gen, feature_extractor
+from data_wrangler import synthetic_data_gen, feature_extractor
 import keras
 import numpy as np
 import pandas as pd
@@ -7,7 +7,7 @@ import tensorflow as tf
 from model import atp_pipeline
 from comparison_models.tnp import tnp_pipeline
 from comparison_models.gru import gru_pipeline
-from data import dataset_preparer
+from data_wrangler import dataset_preparer
 import argparse
 from Tutorials.helper import batcher
 import os
@@ -61,12 +61,15 @@ if __name__ == "__main__":
 
         if args.model == "atp":
             model = atp_pipeline.instantiate_atp(args.dataset)
+            save_dir = save_dir + '/atp'
         
         if args.model == "tnp":
             model = tnp_pipeline.instantiate_tnp(args.dataset)
+            save_dir = save_dir + '/tnp'
 
         if args.model == "gru":
             model = gru_pipeline.instantiate_gru(args.dataset)
+            save_dir = save_dir + '/gru'
             print('fails if doesnt have tf.device("/CPU:0") before training loop starts')
 
         tr_step = atp_graph.build_graph()
