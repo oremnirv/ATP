@@ -5,3 +5,4 @@ testing_notebook.ipynb
 *.npy
 weights/*
 ETTm2.ipynb
+autoformer_192.ipynb
