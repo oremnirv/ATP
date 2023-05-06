@@ -18,6 +18,7 @@ class atp_pipeline(keras.models.Model):
         self.xmin = xmin
         self.xmax = xmax
         self._feature_wrapper = feature_wrapper()
+        # add flag for new model or old model
         self._atp = ATP(num_heads=num_heads,dropout_rate=rate,num_layers=num_layers,output_shape=output_shape,
                         projection_shape=projection_shape_for_head*num_heads,bound_std=bound_std)
         self._DE = DE()

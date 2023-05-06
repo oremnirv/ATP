@@ -25,7 +25,6 @@ class gru_model(tf.keras.Model):
         
         for i in range(self.num_layers):
             whole_seq, _ = self.grus[i](whole_seq, training=training)
-            print(whole_seq.shape)
         
         log_σ = self.w1(tf.nn.gelu(whole_seq))
         μ = self.w2(tf.nn.gelu(whole_seq))
