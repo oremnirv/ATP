@@ -10,7 +10,6 @@ def batcher(t, y, idx_list, batch_s = 32, window = 288):
     idx_list: list of indices, must be ≤ full array - window length.
     '''
     
-    
     if len(idx_list) < 1:
         print("warning- you didn't loop over the correct range")
         
@@ -30,3 +29,12 @@ def batcher(t, y, idx_list, batch_s = 32, window = 288):
         y = y[:,:,np.newaxis]
         
     return t,y, idx_list
+
+def batcher_np(t,y,batch_s=32):
+
+    idx = np.random.choice(y.shape[0], batch_s, replace = False)
+
+    y = y[idx, :, :]
+    t = t[idx, :, :]
+
+    return t,y

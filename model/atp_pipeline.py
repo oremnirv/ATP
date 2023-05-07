@@ -3,13 +3,14 @@ from tensorflow import keras
 import numpy as np
 from data_wrangler.feature_extractor import  DE, feature_wrapper
 from model.atp import ATP
+from model.atp_no_leakage import ATP as ATP_no_leakage
 
 
 
 class atp_pipeline(keras.models.Model):
     
     def __init__(self, num_heads=4, projection_shape_for_head=4, output_shape=64, rate=0.1, permutation_repeats=1,
-                 bound_std=False, num_layers=3, enc_dim=32, xmin=0.1, xmax=2, **kwargs):
+                 bound_std=False, num_layers=3, enc_dim=32, xmin=0.1, xmax=2, MHAX_leakage=True,**kwargs):
         super().__init__(**kwargs)
         # for testing set permutation_repeats=0
    
@@ -18,7 +19,11 @@ class atp_pipeline(keras.models.Model):
         self.xmin = xmin
         self.xmax = xmax
         self._feature_wrapper = feature_wrapper()
-        self._atp = ATP(num_heads=num_heads,dropout_rate=rate,num_layers=num_layers,output_shape=output_shape,
+        if MHAX_leakage == True:
+            self._atp = ATP(num_heads=num_heads,dropout_rate=rate,num_layers=num_layers,output_shape=output_shape,
+                        projection_shape=projection_shape_for_head*num_heads,bound_std=bound_std)
+        else:
+            self._atp = ATP_no_leakage(num_heads=num_heads,dropout_rate=rate,num_layers=num_layers,output_shape=output_shape,
                         projection_shape=projection_shape_for_head*num_heads,bound_std=bound_std)
         self._DE = DE()
 
