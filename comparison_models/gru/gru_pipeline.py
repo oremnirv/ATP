@@ -11,6 +11,7 @@ class gru_pipeline(keras.models.Model):
     def __init__(self, rnn_units, permutation_repeats=0, 
                  num_layers=1):
         super().__init__()
+        # rnn_units is a list of length num_layers
         self._permutation_repeats = permutation_repeats
         self._feature_wrapper = feature_wrapper()
         self._gru = gru_model(rnn_units, num_layers)
