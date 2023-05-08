@@ -41,34 +41,16 @@ class feature_wrapper(tf.keras.layers.Layer):
     
     def permute(self,  inputs):
 
-        x,  y,  n_C,  n_T,  num_permutation_repeats = inputs
+        x,  y,  n_C,  _,  num_permutation_repeats = inputs
 
         if (num_permutation_repeats < 1):
             return x,  y
         
         else: 
-            batch_size = x.shape[0]
-            dim_x = x.shape[-1]
-            dim_y = y.shape[-1]
+            # Shuffle traget only. tf.random.shuffle only works on the first dimension so we need tf.transpose.
+            x_permuted = tf.concat([tf.concat([x[:,  :n_C, :], tf.transpose(tf.random.shuffle(tf.transpose(x[:, n_C:, :], perm=[1, 0, 2])), perm =[1, 0, 2])], axis=1) for j in range(num_permutation_repeats)], axis=0)            
+            y_permuted = tf.concat([tf.concat([y[:,  :n_C, :], tf.transpose(tf.random.shuffle(tf.transpose(y[:, n_C:, :], perm=[1, 0, 2])), perm =[1, 0, 2])], axis=1) for j in range(num_permutation_repeats)], axis=0)
 
-            permute_indices_a = tf.argsort(tf.random.uniform((num_permutation_repeats,  n_T)),  axis=-1)
-            # print(permute_indices_a)
-            permute_indices = tf.repeat(permute_indices_a,  axis=0,  repeats=batch_size)
-            repeated_x = tf.tile(x,  multiples=[num_permutation_repeats,  1,  1])
-            repeated_y = tf.tile(y,  multiples=[num_permutation_repeats,  1,  1])
-
-            print(repeated_x.shape)
-
-
-            selection_indices = tf.concat([tf.reshape(tf.repeat(tf.range(num_permutation_repeats * batch_size),  n_T),  (-1,  1)), 
-                                tf.reshape(permute_indices,  (-1,  1))],  axis=1)
-
-            print(selection_indices.shape)
-            x_target = tf.reshape(tf.gather_nd(repeated_x[:,  n_C:],  selection_indices),  (num_permutation_repeats * batch_size,  n_T,  dim_x))
-            y_target = tf.reshape(tf.gather_nd(repeated_y[:,  n_C:],  selection_indices),  (num_permutation_repeats * batch_size,  n_T,  dim_y))
-
-            x_permuted = tf.concat([repeated_x[:,  :n_C],  x_target],  axis=1)
-            y_permuted = tf.concat([repeated_y[:,  :n_C],  y_target],  axis=1)
             return x_permuted,  y_permuted
         
         

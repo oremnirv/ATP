@@ -8,9 +8,10 @@ from data_wrangler.feature_extractor import feature_wrapper
 
 class gru_pipeline(keras.models.Model):
 
-    def __init__(self, rnn_units, permutation_repeats=1, 
+    def __init__(self, rnn_units, permutation_repeats=0, 
                  num_layers=1):
         super().__init__()
+        # rnn_units is a list of length num_layers
         self._permutation_repeats = permutation_repeats
         self._feature_wrapper = feature_wrapper()
         self._gru = gru_model(rnn_units, num_layers)
@@ -22,10 +23,10 @@ class gru_pipeline(keras.models.Model):
 
         x = x[:,:n_C+n_T,:]
         y = y[:,:n_C+n_T,:]
-            
-        x, y = self._feature_wrapper.permute([x, y, n_C, n_T, self._permutation_repeats]) ##### clean permute, and check permute target and/or context?
+        if training == True:    
+            x, y = self._feature_wrapper.permute([x, y, n_C, n_T, self._permutation_repeats]) ##### clean permute, and check permute target and/or context?
 
-        gru_input = tf.concat([x,y],axis=2)
+        gru_input = y
         μ, log_σ  = self._gru(gru_input, training)
 
         return μ[:, (-n_T-1):-1, :], log_σ[:, (-n_T-1):-1, :]
@@ -35,7 +36,7 @@ def instantiate_gru(dataset, training=True):
             
     if dataset == "weather":
 
-        return gru_pipeline(rnn_units=[20, 20, 10], permutation_repeats=1, num_layers=3)
+        return gru_pipeline(rnn_units=[20, 20, 10], permutation_repeats=0, num_layers=3)
     
 
     # if dataset == "electricity":
