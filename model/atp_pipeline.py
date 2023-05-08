@@ -5,6 +5,7 @@ from data_wrangler.feature_extractor import  DE, feature_wrapper
 from model.atp import ATP
 from model.atp_no_leakage import ATP as ATP_no_leakage
 from model.atp_no_leakage_new_block import ATP as ATP_new_block
+from model.atp_no_leakage_xxx import ATP as ATP_no_leakage_xxx
 
 
 
@@ -28,6 +29,9 @@ class atp_pipeline(keras.models.Model):
                         projection_shape=projection_shape_for_head*num_heads,bound_std=bound_std)
         elif MHAX_leakage == "new_block":
             self._atp = ATP_new_block(num_heads=num_heads,dropout_rate=rate,num_layers=num_layers,output_shape=output_shape,
+                        projection_shape=projection_shape_for_head*num_heads,bound_std=bound_std)
+        elif MHAX_leakage == "xxx":
+            self._atp = ATP_no_leakage_xxx(num_heads=num_heads,dropout_rate=rate,num_layers=num_layers,output_shape=output_shape,
                         projection_shape=projection_shape_for_head*num_heads,bound_std=bound_std)
         self._DE = DE()
 
