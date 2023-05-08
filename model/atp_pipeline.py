@@ -4,6 +4,7 @@ import numpy as np
 from data_wrangler.feature_extractor import  DE, feature_wrapper
 from model.atp import ATP
 from model.atp_no_leakage import ATP as ATP_no_leakage
+from model.atp_no_leakage_new_block import ATP as ATP_new_block
 
 
 
@@ -22,8 +23,11 @@ class atp_pipeline(keras.models.Model):
         if MHAX_leakage == True:
             self._atp = ATP(num_heads=num_heads,dropout_rate=rate,num_layers=num_layers,output_shape=output_shape,
                         projection_shape=projection_shape_for_head*num_heads,bound_std=bound_std)
-        else:
+        elif MHAX_leakage == False:
             self._atp = ATP_no_leakage(num_heads=num_heads,dropout_rate=rate,num_layers=num_layers,output_shape=output_shape,
+                        projection_shape=projection_shape_for_head*num_heads,bound_std=bound_std)
+        elif MHAX_leakage == "new_block":
+            self._atp = ATP_new_block(num_heads=num_heads,dropout_rate=rate,num_layers=num_layers,output_shape=output_shape,
                         projection_shape=projection_shape_for_head*num_heads,bound_std=bound_std)
         self._DE = DE()
 
@@ -75,8 +79,13 @@ def instantiate_atp(dataset,training=True):
         return atp_pipeline(num_heads=4, projection_shape_for_head=4, output_shape=64, rate=0.1, permutation_repeats=1,
                     bound_std=False, num_layers=2, enc_dim=32, xmin=0.1, xmax=2)
     elif dataset == "exchange":
-        return atp_pipeline(num_heads=6, projection_shape_for_head=12, output_shape=32, rate=0.0, permutation_repeats=0,
-                 bound_std=False, num_layers=4, enc_dim=32, xmin=0.1, xmax=1)
+        # return atp_pipeline(num_heads=6, projection_shape_for_head=12, output_shape=32, rate=0.0, permutation_repeats=0,
+        #          bound_std=False, num_layers=4, enc_dim=32, xmin=0.1, xmax=1)
+        #the above is what i used for previous reults
+
+        return atp_pipeline(num_heads=10, projection_shape_for_head=9, output_shape=32, rate=0.05, permutation_repeats=0,
+                 bound_std=False, num_layers=6, enc_dim=32, xmin=0.1, xmax=1,MHAX_leakage="new_block")
+
     else:
         print('choose a valid dataset name')         
             

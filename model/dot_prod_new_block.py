@@ -1,6 +1,3 @@
-###########################
-# Author: Omer Nivron
-###########################
 import tensorflow as tf
 from model import dot_prod
 

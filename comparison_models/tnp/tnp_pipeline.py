@@ -52,10 +52,10 @@ class tnp_pipeline(keras.models.Model):
 
 def instantiate_tnp(dataset,training=True):
             
-    if dataset == "weather":
+    # if dataset == "weather":
 
-        return tnp_pipeline(num_heads=3,projection_shape_for_head=4,output_shape=64, dropout_rate=0.0, 
-                 permutation_repeats=0,bound_std=False, num_layers=6,target_y_dim=1)
+    #     return tnp_pipeline(num_heads=3,projection_shape_for_head=4,output_shape=64, dropout_rate=0.0, 
+    #              permutation_repeats=0,bound_std=False, num_layers=6,target_y_dim=1)
 
                  #does the permutation approach affect results for forecasting? i.e. permutations of 0 or 1 during training? 0 is better
     
@@ -64,3 +64,8 @@ def instantiate_tnp(dataset,training=True):
 
         return tnp_pipeline(num_heads=6,projection_shape_for_head=8,output_shape=48, dropout_rate=0.1, 
                  permutation_repeats=0,bound_std=False, num_layers=6,target_y_dim=1)
+
+    if dataset == "ETT":
+
+        return tnp_pipeline(num_heads=7,projection_shape_for_head=12,output_shape=48, dropout_rate=0.05, 
+                 permutation_repeats=0,bound_std=False, num_layers=4,target_y_dim=1)

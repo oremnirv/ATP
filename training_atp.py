@@ -63,6 +63,13 @@ if __name__ == "__main__":
 
     batch_size = 32
     test_batch_s = 100
+    valid_batch_size = 100
+    if n_T > 700 :
+        batch_size = 16
+        test_batch_s = 16
+        valid_batch_size = 16
+
+    
 
     nll_list = []
     mse_list = []
@@ -114,11 +121,12 @@ if __name__ == "__main__":
 
             if i % 100 == 0:
                 idx_list = list(range(x_val.shape[0] - (n_C+n_T)))
-                t_te,y_te,_ = batcher(x_val,y_val,idx_list,batch_s = 100,window=n_C+n_T)
-                t_te = np.repeat(np.linspace(-1,1,(n_C+n_T))[np.newaxis,:,np.newaxis],axis=0,repeats=100)
+                ##### need to fix - for validation set, and for n_t = 720, this is empty ########
+                t_te,y_te,_ = batcher(x_val,y_val,idx_list,batch_s = valid_batch_size,window=n_C+n_T)
+                t_te = np.repeat(np.linspace(-1,1,(n_C+n_T))[np.newaxis,:,np.newaxis],axis=0,repeats=valid_batch_size)
 
                 if args.dataset == "rbf":
-                    t_te,y_te = batcher_np(x_val,y_val,batch_s=100)
+                    t_te,y_te = batcher_np(x_val,y_val,batch_s=valid_batch_size)
                     ####nc nt need to be specified without interfering with the nc nt above
                 μ, log_σ = model([t_te, y_te, n_C, n_T, False])
                 _,_,_, nll_pp_te, msex_te = losses.nll(y_te[:, n_C:n_C+n_T], μ, log_σ)
@@ -138,6 +146,8 @@ if __name__ == "__main__":
         ckpt.restore(manager.latest_checkpoint) 
    
         test_batch_s = 100 #need to specify this as it gets changed in the loop below
+        if n_T > 700 :
+            test_batch_s = 16
         idx_list = list(range(x_test.shape[0] - (n_C+n_T)))
         num_batches = len(idx_list)//test_batch_s
 
