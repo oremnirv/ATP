@@ -27,6 +27,8 @@ class feature_wrapper(tf.keras.layers.Layer):
         query_xy_label = tf.concat([tf.zeros((batch_s,  n_C,  1)), tf.ones((batch_s,  n_T,  1))],  axis=1)
         y_prime_masked = tf.concat([self.mask_target_pt([y,  n_C,  n_T,  1]),  self.mask_target_pt([y_diff,  n_C,  n_T,  dim_x]),  self.mask_target_pt([d,  n_C,  n_T,  1]),  y_n],  axis=2)
 
+        ############# i think last dim of maskign function for d should be dim_x as well as there is a separate derivative in each x dimension #########
+
         query_xy = tf.concat([y_prime_masked,  query_xy_label,  x_prime], axis=-1)
 
         return query_x,  key_x,  value_x,  query_xy,  key_xy,  value_xy
@@ -89,6 +91,12 @@ class DE(tf.keras.layers.Layer):
         d = tf.concat([d,  d_label],  axis=-1)
 
         return y_diff,  x_diff,  d,  x_n,  y_n
+
+
+###### i think here what we do is calculate the derivative at the given y value and add that in as a feature. This is masked when making predictions
+# so the derivative of other y values are what are seen
+#  Based on taylor expansion, a better feature would be including the derivative of the closest x point, where only seen y values are used for the differencing. 
+#this derivative wouldn't need masking.
 
  ############ check what to do for 2d derivatives - should y diff just be for one point? for residual trick that would make most sense.
  #### but you need mutli-dimensional y for the derivative

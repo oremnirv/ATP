@@ -121,7 +121,7 @@ if __name__ == "__main__":
 
             if i % 100 == 0:
                 idx_list = list(range(x_val.shape[0] - (n_C+n_T)))
-                ##### need to fix - for validation set, and for n_t = 720, this is empty ########
+                ##### if val set is empty - increase val set size.  ########
                 t_te,y_te,_ = batcher(x_val,y_val,idx_list,batch_s = valid_batch_size,window=n_C+n_T)
                 t_te = np.repeat(np.linspace(-1,1,(n_C+n_T))[np.newaxis,:,np.newaxis],axis=0,repeats=valid_batch_size)
 

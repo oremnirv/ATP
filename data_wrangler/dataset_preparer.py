@@ -37,8 +37,8 @@ def dataset_processor(path_to_data):
 
         data = data.astype("float32")
 
-        training_data = data[:int(0.7*data.shape[0])]
-        val_data = data[int(0.7*data.shape[0]):int(0.8*data.shape[0])]
+        training_data = data[:int(0.69*data.shape[0])]
+        val_data = data[int(0.69*data.shape[0]):int(0.8*data.shape[0])]
         test_data = data[int(0.8*data.shape[0]):]
 
         #scale
