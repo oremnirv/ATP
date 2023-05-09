@@ -52,3 +52,21 @@ def dataset_processor(path_to_data):
         x_test, y_test = test_data_scaled[:,:1], test_data_scaled[:,-1:]
 
         return x_train[:,:,np.newaxis], y_train[:,:,np.newaxis], x_val[:,:,np.newaxis], y_val[:,:,np.newaxis], x_test[:,:,np.newaxis], y_test[:,:,np.newaxis]
+
+def gp_data_processor(path_to_data_folder):
+
+        x = np.load(path_to_data_folder + "x.npy")
+        y = np.load(path_to_data_folder + "y.npy")
+
+        x_train = x[:int(0.99*x.shape[0])]
+        y_train = y[:int(0.99*y.shape[0])]
+        x_val = x[int(0.99*x.shape[0]):]
+        y_val = y[int(0.99*y.shape[0]):]
+
+        x_test = np.load(path_to_data_folder + "x_test.npy")
+        y_test = np.load(path_to_data_folder + "y_test.npy")
+
+        context_n_test = np.load(path_to_data_folder + "context_n_test.npy")
+
+        return x_train, y_train, x_val, y_val, x_test, y_test, context_n_test
+

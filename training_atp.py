@@ -10,7 +10,7 @@ from comparison_models.tnp import tnp_pipeline
 from comparison_models.gru import gru_pipeline
 from data_wrangler import dataset_preparer
 import argparse
-from Tutorials.helper import batcher
+from data_wrangler.batcher import batcher, batcher_np
 import os
 
 if __name__ == "__main__":
@@ -41,17 +41,35 @@ if __name__ == "__main__":
         x_train, y_train, x_val, y_val, x_test, y_test = dataset_preparer.dataset_processor(path_to_data="datasets/ETTm2.csv") 
         save_dir = "weights/forecasting/ETT"
         print('make sure to create the ETT folder in weights/forecasting/')
+
+    elif args.dataset == "rbf":
+        x_train, y_train, x_val, y_val, x_test, y_test,n_context_test = dataset_preparer.gp_data_processor(path_to_data_folder="datasets/rbf/")
+        save_dir = "weights/gp/rbf"
+        print('make sure to create the gp folder in weights/gp')
+
     else: 
         raise ValueError("Dataset not found")
     
-    save_dir = save_dir + "/" + args.model + '/' + str(args.n_T)
-        
-    
+
+    if args.dataset == "rbf":
+        save_dir = save_dir + '/' + args.model
+
+    else:
+        #### for forecasting inlude the n_T in the save directory
+        save_dir = save_dir + "/" + args.model + '/' + str(args.n_T)
+
     n_C = args.n_C
     n_T = args.n_T
 
     batch_size = 32
     test_batch_s = 100
+    valid_batch_size = 100
+    if n_T > 700 :
+        batch_size = 16
+        test_batch_s = 16
+        valid_batch_size = 16
+
+    
 
     nll_list = []
     mse_list = []
@@ -90,15 +108,26 @@ if __name__ == "__main__":
 
         for i in range(args.iterations):
             idx_list = list(range(x_train.shape[0] - (n_C+n_T)))
-            x,y,_ = batcher(x_train,y_train,idx_list,window=n_C+n_T) ####### generalise for not just forecasting
+            x,y,_ = batcher(x_train,y_train,idx_list,window=n_C+n_T,batch_s=batch_size) ####### generalise for not just forecasting
             x = np.repeat(np.linspace(-1,1,(n_C+n_T))[np.newaxis,:, np.newaxis], axis=0, repeats=batch_size) # it doesnt matter what the time is, just the relation between the times.
             #### edit batcher to fix this
+
+            #### batcher for NP data (which is already in sequences)
+            if args.dataset == "rbf":
+                x,y = batcher_np(x_train,y_train,batch_s=batch_size)
+                #### nc nT need specification
+
             _,_, _, _ = tr_step(model, opt, x,y,n_C,n_T, training=True)
 
             if i % 100 == 0:
                 idx_list = list(range(x_val.shape[0] - (n_C+n_T)))
-                t_te,y_te,_ = batcher(x_val,y_val,idx_list,batch_s = 100,window=n_C+n_T)
-                t_te = np.repeat(np.linspace(-1,1,(n_C+n_T))[np.newaxis,:,np.newaxis],axis=0,repeats=100)
+                ##### need to fix - for validation set, and for n_t = 720, this is empty ########
+                t_te,y_te,_ = batcher(x_val,y_val,idx_list,batch_s = valid_batch_size,window=n_C+n_T)
+                t_te = np.repeat(np.linspace(-1,1,(n_C+n_T))[np.newaxis,:,np.newaxis],axis=0,repeats=valid_batch_size)
+
+                if args.dataset == "rbf":
+                    t_te,y_te = batcher_np(x_val,y_val,batch_s=valid_batch_size)
+                    ####nc nt need to be specified without interfering with the nc nt above
                 μ, log_σ = model([t_te, y_te, n_C, n_T, False])
                 _,_,_, nll_pp_te, msex_te = losses.nll(y_te[:, n_C:n_C+n_T], μ, log_σ)
 
@@ -117,6 +146,8 @@ if __name__ == "__main__":
         ckpt.restore(manager.latest_checkpoint) 
    
         test_batch_s = 100 #need to specify this as it gets changed in the loop below
+        if n_T > 700 :
+            test_batch_s = 16
         idx_list = list(range(x_test.shape[0] - (n_C+n_T)))
         num_batches = len(idx_list)//test_batch_s
 
