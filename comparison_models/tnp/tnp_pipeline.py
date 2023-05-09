@@ -1,5 +1,6 @@
 import tensorflow as tf
 from tensorflow import keras
+import numpy as np
 from comparison_models.tnp.tnp import TNP_Decoder
 import sys
 sys.path.append("../../")
@@ -29,12 +30,16 @@ class tnp_pipeline(keras.models.Model):
 
         ######## make mask #######
 
-        context_part = tf.concat([tf.ones((n_C,n_C),tf.bool),tf.zeros((n_C,2*n_T),tf.bool)],
-                         axis=-1)
-        first_part = tf.linalg.band_part(tf.ones((n_T,n_C+2*n_T),tf.bool),-1,n_C)
-        second_part = tf.linalg.band_part(tf.ones((n_T,n_C+2*n_T),tf.bool),-1,n_C-1)
-        mask = tf.concat([context_part,first_part,second_part],axis=0)
+        # context_part = tf.concat([tf.ones((n_C,n_C),tf.bool),tf.zeros((n_C,2*n_T),tf.bool)],
+        #                  axis=-1)
+        # first_part = tf.linalg.band_part(tf.ones((n_T,n_C+2*n_T),tf.bool),-1,n_C)
+        # second_part = tf.linalg.band_part(tf.ones((n_T,n_C+2*n_T),tf.bool),-1,n_C-1)
+        # mask = tf.concat([context_part,first_part,second_part],axis=0)
         
+        mask = tf.linalg.band_part(tf.ones([n_C + n_T, n_C + n_T]), -1, 0)  - tf.eye(n_C + n_T)
+        mask[:n_C, :n_C] = 1 
+        mask = tf.concat([mask , mask], axis=0)
+
         ###### mask appropriate inputs ######
 
         batch_s = tf.shape(x)[0]

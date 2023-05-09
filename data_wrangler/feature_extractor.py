@@ -96,8 +96,12 @@ class DE(tf.keras.layers.Layer):
  ###### and explain why we do this
 
     def derivative_function(self,  inputs, ϵ=0.000002):
+        ## need to add shape information to inputs
+        print('please add shape information to inputs')
         
         y_values,  x_values,  n_C,  n_T = inputs
+        print(y_values.shape)
+        print(x_values.shape)
 
 
         batch_size = y_values.shape[0]
@@ -108,15 +112,16 @@ class DE(tf.keras.layers.Layer):
 
         #context section
 
-        current_x = tf.expand_dims(x_values[:,  :n_C], axis=2)
-        current_y = tf.expand_dims(y_values[:,  :n_C], axis=2)
+        current_x = x_values[:, :n_C, tf.newaxis]
+        current_y = y_values[:, :n_C, tf.newaxis]
 
         x_temp = x_values[:, :n_C]
         x_temp = tf.repeat(tf.expand_dims(x_temp,  axis=1),  axis=1,  repeats=n_C)
-        
+        print(x_temp.shape)
+
         y_temp = y_values[:, :n_C]
         y_temp = tf.repeat(tf.expand_dims(y_temp,  axis=1),  axis=1,  repeats=n_C)
-        
+        print(y_temp.shape)
 
         ix = tf.argsort(tf.math.reduce_euclidean_norm((current_x - x_temp), axis=-1), axis=-1)[:, :, 1]        
         selection_indices = tf.concat([tf.reshape(tf.repeat(tf.range(batch_size*n_C), 1), (-1, 1)), 
@@ -272,22 +277,19 @@ class DE(tf.keras.layers.Layer):
             x_temp = tf.repeat(tf.expand_dims(x_values[:, :n_T+n_C], axis=1), axis=1, repeats=n_T)
             y_temp = tf.repeat(tf.expand_dims(y_values[:, :n_T+n_C], axis=1), axis=1, repeats=n_T)
 
-
-            x_mask = tf.linalg.band_part(tf.ones((n_T, n_C + n_T), tf.bool), -1, n_C)
-            x_mask_inv = (x_mask == False)
-            x_mask_float = tf.cast(x_mask_inv, "float32")*1000
-            x_mask_float_repeat = tf.repeat(tf.expand_dims(x_mask_float, axis=0), axis=0, repeats=batch_size)
             
+            x_mask = 1000  * (1 -  tf.linalg.band_part(tf.ones((n_T, n_C + n_T), tf.int32), -1, n_C))
+            x_mask_repeat = tf.repeat(x_mask[tf.newaxis, :], axis=0, repeats=batch_size)
             
             ix_1 = tf.argsort(tf.cast(tf.math.reduce_euclidean_norm((current_x - x_temp), 
-                                                axis=-1), dtype="float32") + x_mask_float_repeat, axis=-1)[:, :, 1]
+                                                axis=-1), dtype="float32") + x_mask_repeat, axis=-1)[:, :, 1]
             selection_indices_1 = tf.concat([tf.reshape(tf.repeat(tf.range(batch_size*n_T), 1), (-1, 1)), 
                                                 tf.reshape(ix_1, (-1, 1))], axis=1)
             
             
             
             ix_2 = tf.argsort(tf.cast(tf.math.reduce_euclidean_norm((current_x - x_temp), 
-                                                axis=-1), dtype="float32") + x_mask_float_repeat, axis=-1)[:, :, 2]
+                                                axis=-1), dtype="float32") + x_mask_repeat, axis=-1)[:, :, 2]
             selection_indices_2 = tf.concat([tf.reshape(tf.repeat(tf.range(batch_size*n_T), 1), (-1, 1)), 
                                                 tf.reshape(ix_2, (-1, 1))], axis=1)
             

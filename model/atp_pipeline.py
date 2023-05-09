@@ -40,7 +40,7 @@ class atp_pipeline(keras.models.Model):
 
         x, y, n_C, n_T, training = inputs
         #x and y have shape batch size x length x dim
-
+        
         x = x[:,:n_C+n_T,:]
         y = y[:,:n_C+n_T,:]
 
@@ -52,13 +52,15 @@ class atp_pipeline(keras.models.Model):
 
         ######## make mask #######
         
-        context_part = tf.concat([tf.ones((n_C,n_C),tf.bool),tf.zeros((n_C,n_T),tf.bool)],axis=-1)
-        diagonal_mask = tf.linalg.band_part(tf.ones((n_C+n_T,n_C+n_T),tf.bool),-1,0)
-        lower_diagonal_mask = tf.linalg.set_diag(diagonal_mask,tf.zeros(diagonal_mask.shape[0:-1],tf.bool)) ### condense into one line?                                                                               
-        mask = tf.concat([context_part,lower_diagonal_mask[n_C:n_C+n_T,:n_C+n_T]],axis=0) # check no conflicts with init and check mask is correct shape
-        
-        ######## create derivative ########
+        # context_part = tf.concat([tf.ones((n_C,n_C),tf.bool),tf.zeros((n_C,n_T),tf.bool)],axis=-1)
+        # diagonal_mask = tf.linalg.band_part(tf.ones((n_C+n_T,n_C+n_T),tf.bool),-1,0)
+        # lower_diagonal_mask = tf.linalg.set_diag(diagonal_mask,tf.zeros(diagonal_mask.shape[0:-1],tf.bool)) ### condense into one line?                                                                               
+        # mask = tf.concat([context_part,lower_diagonal_mask[n_C:n_C+n_T,:n_C+n_T]],axis=0) # check no conflicts with init and check mask is correct shape
+        # print(mask.shape)
 
+        mask = tf.linalg.band_part(tf.ones([n_C + n_T, n_C + n_T]), -1, 0)  - tf.eye(n_C + n_T)
+        mask[:n_C, :n_C] = 1  # shape (n_C + n_T, n_C + n_T)
+        ######## create derivative ########
 
         y_diff, x_diff, d, x_n, y_n = self._DE([y, x, n_C, n_T, training])
 

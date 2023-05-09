@@ -162,6 +162,7 @@ class ATP(tf.keras.Model):
         self.bound_std = bound_std
 
     def call(self, input, training=True):
+        
         query_x, key_x, value_x, query_xy, key_xy, value_xy, mask, y_n = input
         x = self.mha_x_a(query_x,key_x, value_x, mask,training=training)
         xy = self.mha_xy_a(query_xy, key_xy, value_xy, mask,training=training)
