@@ -38,5 +38,9 @@ def instantiate_gru(dataset, training=True):
 
         return gru_pipeline(rnn_units=[128, 64, 32], permutation_repeats=0, num_layers=3)
     
+    if dataset == "ETT":
+        return gru_pipeline(rnn_units=[128, 64, 32], permutation_repeats=0, num_layers=3)
 
+    if dataset == "exchange":
+        return gru_pipeline(rnn_units=[128, 64, 32], permutation_repeats=0, num_layers=3)
     # if dataset == "electricity":
