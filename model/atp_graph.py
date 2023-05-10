@@ -5,24 +5,17 @@ from model import losses
 
 def build_graph():
     
-    @tf.function
-    def train_step(atp_model, optimizer, x, y, n_C, training=True):
+    @tf.function(experimental_relax_shapes=True)
+    def train_step(atp_model, optimizer, x, y, n_C, n_T, training=True):
 
         with tf.GradientTape(persistent=True) as tape:
 
-            pred = atp_model(x, training) 
-            _, _, likpp, mse = losses.nll(y[:, n_C:], pred[:, :, 0], pred[:, :, 1], n_C)
+            μ, log_σ = atp_model([x, y, n_C, n_T, training]) 
+            _, _, _, likpp, mse = losses.nll(y[:, n_C:n_T+n_C], μ, log_σ)
         
         gradients = tape.gradient(likpp, atp_model.trainable_variables)
         optimizer.apply_gradients(zip(gradients, atp_model.trainable_variables))
-        return pred, likpp, mse
-
-    @tf.function
-    def test_step(atp_model, x_te, y, n_C, training=False):
-
-        pred_te = atp_model(x_te, training)
-        _, _, likpp, mse  = losses.nll(y[:, n_C:], pred_te[:, :, 0], pred_te[:, :, 1],  n_C)
-        return pred_te, likpp, mse
+        return μ, log_σ, likpp, mse
 
     tf.keras.backend.set_floatx('float32')
-    return train_step, test_step
+    return train_step

@@ -2,23 +2,37 @@ import numpy as np
 import pandas as pd
 
 ### let's create data batches that fit the task
-def batcher(t, y, batch_s = 32, training=True, given_hr = 96, pred_hr = 192):
-    win_l = given_hr + pred_hr
-    tr_last_ix = int((y.shape[0]) *0.7)
-    val_last_ix = int((y.shape[0]) *0.8)
+def batcher(t, y, idx_list, batch_s = 32, window = 288):
+    '''
+    cutting one long array to sequences of length 'window'.
+    'batch_s' must be ≤ full array - window length
 
-    if training:
-        y = y[:tr_last_ix]
-        t = t[:tr_last_ix]
-    else: 
-        y = y[tr_last_ix:val_last_ix]
-        t = t[tr_last_ix:val_last_ix]
-    idx = np.random.choice(np.arange(win_l, len(y) - win_l), batch_s, replace=False)
-
-    y = np.array([np.array(y)[i:i+win_l] for i in idx])
-    t = np.array([np.array(t)[i:i+win_l] for i in idx])
+    input to forecast: (None, 1, 1) for t,y.
+    input to NP tasks: (None, seq_len, 1) for t,y. window = 1.
+    idx_list: list of indices, must be ≤ full array - window length.
+    '''
     
-    return t, y
+    
+    if len(idx_list) < 1:
+        print("warning- you didn't loop over the correct range")
+        
+    
+    batch_s = min(batch_s, y.shape[0]-window)    
+    idx = np.random.choice(len(idx_list), batch_s, replace = False)
+
+    y = np.array([np.array(y)[idx_list[i]:idx_list[i]+window, :, :] for i in idx])
+    t = np.array([np.array(t)[idx_list[i]:idx_list[i]+window, :, :] for i in idx])
+    for i in sorted(idx, reverse=True): del idx_list[i]
+        
+    t = t.squeeze()
+    y = y.squeeze()
+    
+    if len(t.shape) == 2:
+        t = t[:,:,np.newaxis]
+        y = y[:,:,np.newaxis]
+        
+    return t,y, idx_list
+  ######## need to edit to make it clearer how to use the batcher so it returns what is desired
 
 ### It is usually helpful to make gaps during predictions as opposed to providing the full sequence. Let's then run the batcher outputs through a sampler 
 def batch_sampler(t, y, given_hr = 96, pred_hr = 192):

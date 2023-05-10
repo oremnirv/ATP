@@ -98,7 +98,7 @@ class MHA_X_b(tf.keras.layers.Layer):
                   dropout_rate=0.1):
         super(MHA_X_b, self).__init__()
         self.mha = dot_prod.MultiHeadAttention(num_heads, output_shape, projection_shape)
-        self.ffn = FFN_o(output_shape, dropout_rate)
+        self.ffn = FFN_1(output_shape, dropout_rate)
 
     def call(self, query, key, value, mask, training = True):
         x = self.mha(query, key, value, mask)
@@ -118,9 +118,9 @@ class MHA_XY_b(tf.keras.layers.Layer):
         self.mha = dot_prod.MultiHeadAttention(num_heads, output_shape, projection_shape)
         self.ffn = FFN_o(output_shape, dropout_rate)
 
-    def call(self, query, key, value, mask, prev_mha_xy_out, training=True):
+    def call(self, query, key, value, mask, training=True):
         x = self.mha(query, key, value, mask)
-        x = self.ffn(x, prev_mha_xy_out, training=training)  # Shape `(batch_size, seq_len, output_shape)`.
+        x = self.ffn(x, query, training=training)  # Shape `(batch_size, seq_len, output_shape)`.
         # print(x)   ### works in repeated runs
 
         return x
@@ -157,30 +157,36 @@ class ATP(tf.keras.Model):
                   output_shape,
                   dropout_rate=dropout_rate) for _ in range(num_layers-1)]
 
+        self.linear_layers = [tf.keras.layers.Dense(output_shape) for 
+                                        _ in range(num_layers)]
+
+        self.query_linear = tf.keras.layers.Dense(output_shape)                                
+
         self.dense_sigma = tf.keras.layers.Dense(target_y_dim)
         self.dense_last = tf.keras.layers.Dense(target_y_dim)
         self.bound_std = bound_std
 
     def call(self, input, training=True):
-        query_x, key_x, value_x, query_xy, key_xy, value_xy, mask, y_n = input
-        x = self.mha_x_a(query_x,key_x, value_x, mask,training=training)
+        query_x, key_x, _, query_xy, key_xy, value_xy, mask, y_n = input
+
+        x = self.mha_x_a(query_x,key_x, value_xy, mask,training=training)
         xy = self.mha_xy_a(query_xy, key_xy, value_xy, mask,training=training)
 
-        ##### new
 
         for i in range(self.num_layers - 1):
 
-            xy_temp = tf.identity(xy)
-            xy = xy + x
+            combo = tf.concat([x,xy], axis = 2)
+            combo = self.linear_layers[i](combo)
 
-            xy  = self.mha_xy_b[i](xy, xy, xy, mask, xy_temp,training=training)
-            x  = self.mha_x_b[i](x, x, value_x, mask,training=training)
+            xy  = self.mha_xy_b[i](combo, combo, combo, mask,training=training)
+            x  = self.mha_x_b[i](query_x, key_x, combo, mask,training=training)
 
             if ((i < (self.num_layers - 2)) | (self.num_layers <= 2)):
                 log_σ = self.dense_sigma(xy)
 
 
-        z = xy + x
+        combo = tf.concat([x,xy], axis = 2)
+        z = self.linear_layers[-1](combo)
 
         μ = self.dense_last(z) + y_n
 

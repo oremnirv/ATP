@@ -1,1 +1,10 @@
-.ipynb*
+*.pyc
+*.csv
+.ipynb_checkpoints*
+*.npy
+weights/*
+slurm_scripts/*
+*ipynb
+.DS_Store
+__pycache__
+figures
