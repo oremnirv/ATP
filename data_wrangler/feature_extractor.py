@@ -25,7 +25,7 @@ class feature_wrapper(tf.keras.layers.Layer):
         key_xy = tf.identity(value_xy)
 
         query_xy_label = tf.concat([tf.zeros((batch_s,  n_C,  1)), tf.ones((batch_s,  n_T,  1))],  axis=1)
-        y_prime_masked = tf.concat([self.mask_target_pt([y,  n_C,  n_T,  1]),  self.mask_target_pt([y_diff,  n_C,  n_T,  dim_x]),  self.mask_target_pt([d,  n_C,  n_T,  1]),  y_n],  axis=2)
+        y_prime_masked = tf.concat([self.mask_target_pt([y,  n_C,  n_T]),  self.mask_target_pt([y_diff,  n_C,  n_T]),  self.mask_target_pt([d,  n_C,  n_T]),  y_n],  axis=2)
 
         ############# i think last dim of maskign function for d should be dim_x as well as there is a separate derivative in each x dimension #########
 
@@ -34,11 +34,11 @@ class feature_wrapper(tf.keras.layers.Layer):
         return query_x,  key_x,  value_x,  query_xy,  key_xy,  value_xy
 
     def mask_target_pt(self,  inputs):
-        y,  n_C,  n_T,  dim_x = inputs
+        y,  n_C,  n_T = inputs
         dim_y = y.shape[-1]
         batch_s = y.shape[0]
 
-        mask_y = tf.concat([y[:,  :n_C],  tf.zeros((batch_s,  n_T,  dim_y * dim_x))],  axis=1)
+        mask_y = tf.concat([y[:,  :n_C],  tf.zeros((batch_s,  n_T,  dim_y ))],  axis=1)
         return mask_y
     
     def permute(self,  inputs):
@@ -108,9 +108,6 @@ class DE(tf.keras.layers.Layer):
         print('please add shape information to inputs')
         
         y_values,  x_values,  n_C,  n_T = inputs
-        print(y_values.shape)
-        print(x_values.shape)
-
 
         batch_size = y_values.shape[0]
 
@@ -120,16 +117,14 @@ class DE(tf.keras.layers.Layer):
 
         #context section
 
-        current_x = x_values[:, :n_C, tf.newaxis]
-        current_y = y_values[:, :n_C, tf.newaxis]
+        current_x = tf.expand_dims(x_values[:, :n_C], axis=2)
+        current_y = tf.expand_dims(y_values[:, :n_C], axis=2)
 
         x_temp = x_values[:, :n_C]
         x_temp = tf.repeat(tf.expand_dims(x_temp,  axis=1),  axis=1,  repeats=n_C)
-        print(x_temp.shape)
 
         y_temp = y_values[:, :n_C]
         y_temp = tf.repeat(tf.expand_dims(y_temp,  axis=1),  axis=1,  repeats=n_C)
-        print(y_temp.shape)
 
         ix = tf.argsort(tf.math.reduce_euclidean_norm((current_x - x_temp), axis=-1), axis=-1)[:, :, 1]        
         selection_indices = tf.concat([tf.reshape(tf.repeat(tf.range(batch_size*n_C), 1), (-1, 1)), 
@@ -168,14 +163,12 @@ class DE(tf.keras.layers.Layer):
         # x_mask_float = tf.cast(x_mask_inv, "float32")*1000
         # x_mask_float_repeat = tf.repeat(x_mask_float[tf.newaxis, :], axis=0, repeats=batch_size)
 
-        # create a matrix of 1000s and 0s,  where 1000s are the values we want to ignore
-        # number of 1000s in each row decreases by 1 each time, e.g. if n_C=10, n_T=10 first row has n_C zeros and n_T 1000s, second row has n_C+1 zeros and n_T-1 1000s etc.  
-        x_mask = 1000  * (1 -  tf.linalg.band_part(tf.ones((n_T, n_C + n_T), tf.int32), -1, n_C))
-        x_mask_repeat = tf.repeat(x_mask[tf.newaxis, :], axis=0, repeats=batch_size)
 
+        # print(x_mask_repeat.shape)
         ix = tf.argsort(tf.cast(tf.math.reduce_euclidean_norm((current_x - x_temp), 
                                             axis=-1), dtype="float32") + x_mask_repeat, axis=-1)[:, :, 1]
 
+        print(ix.shape)
         selection_indices = tf.concat([tf.reshape(tf.repeat(tf.range(batch_size*n_T), 1), (-1, 1)), 
                                    tf.reshape(ix, (-1, 1))], axis=1)
 

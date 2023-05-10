@@ -36,7 +36,7 @@ def instantiate_gru(dataset, training=True):
             
     if dataset == "weather":
 
-        return gru_pipeline(rnn_units=[20, 20, 10], permutation_repeats=0, num_layers=3)
+        return gru_pipeline(rnn_units=[128, 64, 32], permutation_repeats=0, num_layers=3)
     
 
     # if dataset == "electricity":
