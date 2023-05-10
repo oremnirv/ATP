@@ -25,20 +25,18 @@ class feature_wrapper(tf.keras.layers.Layer):
         key_xy = tf.identity(value_xy)
 
         query_xy_label = tf.concat([tf.zeros((batch_s,  n_C,  1)), tf.ones((batch_s,  n_T,  1))],  axis=1)
-        y_prime_masked = tf.concat([self.mask_target_pt([y,  n_C,  n_T,  1]),  self.mask_target_pt([y_diff,  n_C,  n_T,  dim_x]),  self.mask_target_pt([d,  n_C,  n_T,  1]),  y_n],  axis=2)
-
-        ############# i think last dim of maskign function for d should be dim_x as well as there is a separate derivative in each x dimension #########
+        y_prime_masked = tf.concat([self.mask_target_pt([y,  n_C,  n_T]),  self.mask_target_pt([y_diff,  n_C,  n_T]),  self.mask_target_pt([d,  n_C,  n_T]),  y_n],  axis=2)
 
         query_xy = tf.concat([y_prime_masked,  query_xy_label,  x_prime], axis=-1)
 
         return query_x,  key_x,  value_x,  query_xy,  key_xy,  value_xy
 
     def mask_target_pt(self,  inputs):
-        y,  n_C,  n_T,  dim_x = inputs
-        dim_y = y.shape[-1]
+        y,  n_C,  n_T = inputs
+        dim = y.shape[-1]
         batch_s = y.shape[0]
 
-        mask_y = tf.concat([y[:,  :n_C],  tf.zeros((batch_s,  n_T,  dim_y * dim_x))],  axis=1)
+        mask_y = tf.concat([y[:,  :n_C],  tf.zeros((batch_s,  n_T,  dim))],  axis=1)
         return mask_y
     
     def permute(self,  inputs):
@@ -163,11 +161,11 @@ class DE(tf.keras.layers.Layer):
         x_mask_inv = (x_mask == False)
         x_mask_float = tf.cast(x_mask_inv, "float32")*1000
         x_mask_float_repeat = tf.repeat(tf.expand_dims(x_mask_float, axis=0), axis=0, repeats=batch_size)
-
+        print(x_mask_float_repeat.shape)
         ix = tf.argsort(tf.cast(tf.math.reduce_euclidean_norm((current_x - x_temp), 
                                             axis=-1), dtype="float32") + x_mask_float_repeat, axis=-1)[:, :, 1]
 
-       
+        print(ix.shape)
         selection_indices = tf.concat([tf.reshape(tf.repeat(tf.range(batch_size*target_m), 1), (-1, 1)), 
                                    tf.reshape(ix, (-1, 1))], axis=1)
 
