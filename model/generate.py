@@ -10,7 +10,6 @@ def generate(model, y, n_C, n_T, μ=[], sample=True, num_samples=20, show=False)
     y_temp = y[:,:n_C,:].copy().reshape(1, -1, 1) 
     y_temp = np.repeat(y_temp, num_samples, axis=0)
     x_temp = np.repeat(x, num_samples, axis=0)
-    print(model)
     for gen_num in range(n_T):
         y_temp = np.concatenate([y_temp, np.zeros((num_samples, 1, 1))], axis=1)
         if show:

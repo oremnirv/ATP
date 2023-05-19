@@ -43,6 +43,14 @@ class feature_wrapper(tf.keras.layers.Layer):
         mask_y = tf.concat([y[:,  :n_C],  tf.zeros((batch_s,  n_T,  dim_y))],  axis=1)
         return mask_y
     
+    def masker(self, n_C, n_T, multiplier):
+        context_part = tf.concat([tf.ones((n_C * self.multiply, n_C* self.multiply), tf.bool),tf.zeros((n_C * self.multiply, n_T* self.multiply),tf.bool)],axis=-1)
+        diagonal_mask = tf.linalg.band_part(tf.ones(((n_C+n_T)* self.multiply, (n_C+n_T)* self.multiply),tf.bool),-1,0)
+        lower_diagonal_mask = tf.linalg.set_diag(diagonal_mask,tf.zeros(diagonal_mask.shape[0:-1],tf.bool)) ### condense into one line?                                                                               
+        mask = tf.concat([context_part,lower_diagonal_mask[n_C* self.multiply:(n_C+n_T)* self.multiply,:(n_C+n_T)* self.multiply]],axis=0) # check no conflicts with init and check mask is correct shape
+        return mask
+
+    
     def permute(self,  inputs):
 
         x,  y,  n_C,  _,  num_permutation_repeats = inputs

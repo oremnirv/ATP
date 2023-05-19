@@ -12,8 +12,8 @@ from model.atp_no_leakage_xxx import ATP as ATP_no_leakage_xxx
 class atp_pipeline(keras.models.Model):
     
     def __init__(self, num_heads=4, projection_shape_for_head=4, output_shape=64, rate=0.1, permutation_repeats=1,
-                 bound_std=False, num_layers=3, enc_dim=32, xmin=0.1, xmax=2, multiply=1, MHAX_leakage=True,**kwargs):
-        super().__init__(**kwargs)
+                 bound_std=False, num_layers=3, enc_dim=32, xmin=0.1, xmax=2, multiply=1, MHAX_leakage=True, subsample =True):
+        super().__init__()
         # for testing set permutation_repeats=0
    
         self._permutation_repeats = permutation_repeats
@@ -21,6 +21,7 @@ class atp_pipeline(keras.models.Model):
         self.xmin = xmin
         self.xmax = xmax
         self.multiply = multiply
+        self._subsample = subsample
         self._feature_wrapper = feature_wrapper(multiply=self.multiply)
         if MHAX_leakage == True:
             self._atp = ATP(num_heads=num_heads,dropout_rate=rate,num_layers=num_layers,output_shape=output_shape,
@@ -40,22 +41,32 @@ class atp_pipeline(keras.models.Model):
     def call(self,inputs):
 
         x, y, n_C, n_T, training = inputs
-        #x and y have shape batch size x length x dim
         
         x = x[:,:(n_C+n_T) * self.multiply,:]
         y = y[:,:(n_C+n_T) * self.multiply,:]
+
+        if self._subsample == True:
+            max_sample_C = int(np.random.choice(np.arange(n_C), 1))
+            sample_c = (np.random.choice(np.arange(n_C), max_sample_C, replace=False))
+            sample_c = tf.sort(sample_c)
+            max_sample_T = int(np.random.choice(tf.arange(n_T), 1))
+            sample_t = (np.random.choice(np.arange(n_T), max_sample_T, replace=False))
+            sample_t = tf.sort(sample_t)
+            x = x[:,tf.concat([sample_c, sample_t + n_C], axis=0),:]
+            y = y[:,np.concat([sample_c, sample_t + n_C], axis=0),:]
+
+
+        #x and y have shape batch size x length x dim
+        
+        # x = x[:,:(n_C+n_T) * self.multiply,:]
+        # y = y[:,:(n_C+n_T) * self.multiply,:]
         # if training == True:    
             # x,y = self._feature_wrapper.permute([x, y, n_C * self.multiply, n_T * self.multiply, self._permutation_repeats]) ##### clean permute, and check permute target and/or context?
         # print("y shape after permute:", y.shape)
         # permute returns y with shape batch size x NONE x dim ****** check this issue! ******
         ######## make mask #######
         
-        context_part = tf.concat([tf.ones((n_C * self.multiply, n_C* self.multiply), tf.bool),tf.zeros((n_C * self.multiply, n_T* self.multiply),tf.bool)],axis=-1)
-        diagonal_mask = tf.linalg.band_part(tf.ones(((n_C+n_T)* self.multiply, (n_C+n_T)* self.multiply),tf.bool),-1,0)
-        lower_diagonal_mask = tf.linalg.set_diag(diagonal_mask,tf.zeros(diagonal_mask.shape[0:-1],tf.bool)) ### condense into one line?                                                                               
-        mask = tf.concat([context_part,lower_diagonal_mask[n_C* self.multiply:(n_C+n_T)* self.multiply,:(n_C+n_T)* self.multiply]],axis=0) # check no conflicts with init and check mask is correct shape
-        # print("mask:", mask)
-        # print(mask.shape)
+        mask = self._feature_wrapper.masker(n_C, n_T, self.multiply)
 
         if self.multiply == 1:
             x_emb = [self._feature_wrapper.PE([x[:, :, i][:, :, tf.newaxis], self.enc_dim, self.xmin, self.xmax]) for i in range(x.shape[-1])] 
@@ -82,14 +93,6 @@ class atp_pipeline(keras.models.Model):
             x_emb_b = tf.concat([inputs_for_processing[i][0][:, n_C:n_C+n_T, :][:, :, tf.newaxis, :] for i in range(len(inputs_for_processing))], axis=2)
             x_emb_b = tf.reshape(x_emb_b, (x_emb_b.shape[0], -1, x_emb_a.shape[-1]))
             x_emb_c = tf.concat([x_emb_a, x_emb_b], axis=1)
-            # print("x inputs_for_processing 0: ", inputs_for_processing[0][0][:, :n_C, :].shape)
-            # print("x inputs_for_processing 1: ", inputs_for_processing[1][0][:, :n_C, :].shape)
-            # print("x inputs_for_processing 3: ", inputs_for_processing[3][0][:, :n_C, :].shape)    
-            # print("x inputs_for_processing 2: ", inputs_for_processing[2][0][:, :n_C, :].shape)
-            # print("x inputs_for_processing 4: ", inputs_for_processing[4][0][:, :n_C, :].shape)
-            # print("x inputs_for_processing 5: ", inputs_for_processing[5][0][:, :n_C, :].shape)
-            # print("x inputs_for_processing 6: ", inputs_for_processing[6][0][:, :n_C, :].shape)
-            # print("x inputs_for_processing 7: ", inputs_for_processing[7][0][:, :n_C, :].shape)            
 
             zz1 = tf.concat([inputs_for_processing[i][1][:, :n_C, :, 0] for i in range(len(inputs_for_processing))], axis=1)
             zz2 = tf.concat([inputs_for_processing[i][1][:, n_C:n_C+n_T, :, 0] for i in range(len(inputs_for_processing))], axis=2)
@@ -101,36 +104,29 @@ class atp_pipeline(keras.models.Model):
             y_diff_b = tf.concat([inputs_for_processing[i][2][:, n_C:n_C+n_T, :] for i in range(len(inputs_for_processing))], axis=2)
             y_diff_b = tf.reshape(y_diff_b, (y_diff_b.shape[0], -1, y_diff_a.shape[-1]))
             y_diff_c = tf.concat([y_diff_a, y_diff_b], axis=1)
-            # print("y_diff inputs_for_processing 0: ", inputs_for_processing[0][2][:, :n_C, :].shape)
 
             x_diff_a = tf.concat([inputs_for_processing[i][3][:, :n_C, :] for i in range(len(inputs_for_processing))], axis=1)
             x_diff_b = tf.concat([inputs_for_processing[i][3][:, n_C:n_C+n_T, :] for i in range(len(inputs_for_processing))], axis=2)
             x_diff_b = tf.reshape(x_diff_b, (x_diff_b.shape[0], -1, x_diff_a.shape[-1]))
             x_diff_c = tf.concat([x_diff_a, x_diff_b], axis=1)
-            # print("x_diff inputs_for_processing 0: ", inputs_for_processing[0][3][:, :n_C, :].shape)
 
             d_a = tf.concat([inputs_for_processing[i][4][:, :n_C, :] for i in range(len(inputs_for_processing))], axis=1)
             d_b = tf.concat([inputs_for_processing[i][4][:, n_C:n_C+n_T, :][:, :, tf.newaxis, :] for i in range(len(inputs_for_processing))], axis=2)
             d_b = tf.reshape(d_b, (d_b.shape[0], -1, d_a.shape[-1]))
             d_c = tf.concat([d_a, d_b], axis=1)
-            # print("d inputs_for_processing 0: ", inputs_for_processing[0][4][:, :n_C, :].shape)
 
             x_n_a = tf.concat([inputs_for_processing[i][5][:, :n_C, :] for i in range(len(inputs_for_processing))], axis=1)
             x_n_b = tf.concat([inputs_for_processing[i][5][:, n_C:n_C+n_T, :] for i in range(len(inputs_for_processing))], axis=2)
             x_n_b = tf.reshape(x_n_b, (x_n_b.shape[0], -1, x_n_a.shape[-1]))
             x_n_c = tf.concat([x_n_a, x_n_b], axis=1)
-            # print("x_n inputs_for_processing 0: ", inputs_for_processing[0][5][:, :n_C, :].shape)
 
             y_n_a = tf.concat([inputs_for_processing[i][6][:, :n_C, :] for i in range(len(inputs_for_processing))], axis=1)
             y_n_b = tf.concat([inputs_for_processing[i][6][:, n_C:n_C+n_T, :] for i in range(len(inputs_for_processing))], axis=2)
             y_n_b = tf.reshape(y_n_b, (y_n_b.shape[0], -1, y_n_a.shape[-1]))
             y_n_c = tf.concat([y_n_a, y_n_b], axis=1)
-            # print("y_n inputs_for_processing 0: ", inputs_for_processing[0][6][:, :n_C, :].shape)
             y_n = y_n_c
             inputs_for_processing = [x_emb_c, zz3, y_diff_c, x_diff_c, d_c, x_n_c, y_n_c, n_C , n_T]
-        # print("after processing")
-        # print(x_emb_c.shape, zz3.shape, y_diff_c.shape, x_diff_c.shape, d_c.shape, x_n_c.shape, y_n_c.shape)
-        # print("#####")
+
         query_x, key_x, value_x, query_xy, key_xy, value_xy = self._feature_wrapper(inputs_for_processing)
         
         y_n_closest = y_n[:, :, :y.shape[-1]] #### need to update this based on how we pick closest point
