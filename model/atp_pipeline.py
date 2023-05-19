@@ -54,7 +54,7 @@ class atp_pipeline(keras.models.Model):
         diagonal_mask = tf.linalg.band_part(tf.ones(((n_C+n_T)* self.multiply, (n_C+n_T)* self.multiply),tf.bool),-1,0)
         lower_diagonal_mask = tf.linalg.set_diag(diagonal_mask,tf.zeros(diagonal_mask.shape[0:-1],tf.bool)) ### condense into one line?                                                                               
         mask = tf.concat([context_part,lower_diagonal_mask[n_C* self.multiply:(n_C+n_T)* self.multiply,:(n_C+n_T)* self.multiply]],axis=0) # check no conflicts with init and check mask is correct shape
-        print("mask:", mask)
+        # print("mask:", mask)
         # print(mask.shape)
 
         if self.multiply == 1:

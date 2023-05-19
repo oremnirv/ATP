@@ -13,9 +13,10 @@ def batcher(t, y, idx_list, batch_s = 32, window = 288):
     if len(idx_list) < 1:
         print("warning- you didn't loop over the correct range")
         
-    
-    batch_s = min(batch_s, y.shape[0]-window)    
+    print("length of idx list:", len(idx_list))
+    batch_s = min(batch_s, y.shape[0]-window) 
     idx = np.random.choice(len(idx_list), batch_s, replace = False)
+    selected_idx = [idx_list[i] for i in idx]
 
     y = np.array([np.array(y)[idx_list[i]:idx_list[i]+window, :, :] for i in idx])
     t = np.array([np.array(t)[idx_list[i]:idx_list[i]+window, :, :] for i in idx])
@@ -28,7 +29,7 @@ def batcher(t, y, idx_list, batch_s = 32, window = 288):
         t = t[:,:,np.newaxis]
         y = y[:,:,np.newaxis]
         
-    return t,y, idx_list
+    return t,y, idx_list, selected_idx
 
 def batcher_np(t,y,batch_s=32):
 
