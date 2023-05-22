@@ -38,7 +38,7 @@ class atp_pipeline(keras.models.Model):
         self._DE = DE()
 
 
-    def call(self,inputs):
+    def call(self, inputs):
 
         x, y, n_C, n_T, training = inputs
         
@@ -46,20 +46,9 @@ class atp_pipeline(keras.models.Model):
         y = y[:,:(n_C+n_T) * self.multiply,:]
 
         if self._subsample == True:
-            max_sample_C = int(np.random.choice(np.arange(n_C), 1))
-            sample_c = (np.random.choice(np.arange(n_C), max_sample_C, replace=False))
-            sample_c = tf.sort(sample_c)
-            max_sample_T = int(np.random.choice(tf.arange(n_T), 1))
-            sample_t = (np.random.choice(np.arange(n_T), max_sample_T, replace=False))
-            sample_t = tf.sort(sample_t)
-            x = x[:,tf.concat([sample_c, sample_t + n_C], axis=0),:]
-            y = y[:,np.concat([sample_c, sample_t + n_C], axis=0),:]
-
+            x, y, n_C, n_T, idx_c, idx_t = self._feature_wrapper.subsample(x, y, n_C, n_T)
 
         #x and y have shape batch size x length x dim
-        
-        # x = x[:,:(n_C+n_T) * self.multiply,:]
-        # y = y[:,:(n_C+n_T) * self.multiply,:]
         # if training == True:    
             # x,y = self._feature_wrapper.permute([x, y, n_C * self.multiply, n_T * self.multiply, self._permutation_repeats]) ##### clean permute, and check permute target and/or context?
         # print("y shape after permute:", y.shape)
@@ -67,13 +56,14 @@ class atp_pipeline(keras.models.Model):
         ######## make mask #######
         
         mask = self._feature_wrapper.masker(n_C, n_T, self.multiply)
+        print("mask shape:", mask.shape)
 
         if self.multiply == 1:
             x_emb = [self._feature_wrapper.PE([x[:, :, i][:, :, tf.newaxis], self.enc_dim, self.xmin, self.xmax]) for i in range(x.shape[-1])] 
             x_emb = tf.concat(x_emb, axis=-1)
 
             ######## create derivative ########
-
+            # print(n_C, n_T)
             y_diff, x_diff, d, x_n, y_n = self._DE([y, x, n_C, n_T, training])
 
             inputs_for_processing = [x_emb, y, y_diff, x_diff, d, x_n, y_n, n_C, n_T]

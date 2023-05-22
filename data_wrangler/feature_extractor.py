@@ -44,12 +44,28 @@ class feature_wrapper(tf.keras.layers.Layer):
         return mask_y
     
     def masker(self, n_C, n_T, multiplier):
-        context_part = tf.concat([tf.ones((n_C * self.multiply, n_C* self.multiply), tf.bool),tf.zeros((n_C * self.multiply, n_T* self.multiply),tf.bool)],axis=-1)
-        diagonal_mask = tf.linalg.band_part(tf.ones(((n_C+n_T)* self.multiply, (n_C+n_T)* self.multiply),tf.bool),-1,0)
-        lower_diagonal_mask = tf.linalg.set_diag(diagonal_mask,tf.zeros(diagonal_mask.shape[0:-1],tf.bool)) ### condense into one line?                                                                               
-        mask = tf.concat([context_part,lower_diagonal_mask[n_C* self.multiply:(n_C+n_T)* self.multiply,:(n_C+n_T)* self.multiply]],axis=0) # check no conflicts with init and check mask is correct shape
+        context_part = tf.concat([tf.ones((n_C * multiplier, n_C* multiplier), tf.bool), tf.zeros((n_C * multiplier, n_T* multiplier), tf.bool)], axis=-1)
+        diagonal_mask = tf.linalg.band_part(tf.ones(((n_C+n_T)* multiplier, (n_C+n_T)* multiplier), tf.bool),-1,0)
+        lower_diagonal_mask = tf.linalg.set_diag(diagonal_mask, tf.zeros(diagonal_mask.shape[0:-1],tf.bool)) 
+        mask = tf.concat([context_part, lower_diagonal_mask[n_C* multiplier:(n_C+n_T)* multiplier, :(n_C+n_T)* multiplier]], axis=0) 
         return mask
+    
+    def subsample(self, x, y, n_C, n_T):
 
+
+        n_C_s = tf.random.uniform(minval=3, maxval=n_C, shape=[], dtype=tf.int32)
+        n_T_s = tf.random.uniform(minval=2, maxval=n_T, shape=[], dtype=tf.int32)
+        n_C_vec = tf.reshape(tf.repeat([1.], n_C_s), [1, -1])
+        n_T_vec = tf.reshape(tf.repeat([1.], n_T_s), [1, -1])
+        indices_c =  tf.unique(tf.reshape(tf.sort(tf.random.categorical(n_C_vec, n_C_s)), [-1])).y
+        indices_t = tf.unique(tf.reshape(tf.sort(tf.random.categorical(n_T_vec, n_T_s)), [-1])).y
+        xc = tf.gather(x[:, :n_C, :], indices_c, axis=1)
+        xt = tf.gather(x[:, n_C:n_C+n_T, :], indices_t, axis=1)
+        x = tf.concat([xc, xt], axis=1)
+        yc = tf.gather(y[:, :n_C, :], indices_c, axis=1)
+        yt = tf.gather(y[:, n_C:n_C+n_T, :], indices_t, axis=1)
+        y = tf.concat([yc, yt], axis=1)
+        return x, y, n_C_s, n_T_s, indices_c, indices_t, 
     
     def permute(self,  inputs):
 
@@ -131,15 +147,20 @@ class DE(tf.keras.layers.Layer):
 
         current_x = tf.expand_dims(x_values[:,  :context_n], axis=2)
         current_y = tf.expand_dims(y_values[:,  :context_n], axis=2)
+        print("current_x.shape",  current_x.shape)
+        print("current_y.shape",  current_y.shape)
 
+        print("x_values.shape",  x_values.shape)
         x_temp = x_values[:, :context_n]
         x_temp = tf.repeat(tf.expand_dims(x_temp,  axis=1),  axis=1,  repeats=context_n)
-        
+        print("x_temp.shape",  x_temp.shape)
+
         y_temp = y_values[:, :context_n]
         y_temp = tf.repeat(tf.expand_dims(y_temp,  axis=1),  axis=1,  repeats=context_n)
         
 
-        ix = tf.argsort(tf.math.reduce_euclidean_norm((current_x - x_temp), axis=-1), axis=-1)[:, :, 1]        
+        ix = tf.argsort(tf.math.reduce_euclidean_norm((current_x - x_temp), axis=-1), axis=-1)[:, :, 1]   
+
         selection_indices = tf.concat([tf.reshape(tf.repeat(tf.range(batch_size*context_n), 1), (-1, 1)), 
                                        tf.reshape(ix, (-1, 1))], axis=1)
 
