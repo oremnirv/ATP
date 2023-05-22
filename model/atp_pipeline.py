@@ -36,17 +36,22 @@ class atp_pipeline(keras.models.Model):
             self._atp = ATP_no_leakage_xxx(num_heads=num_heads,dropout_rate=rate,num_layers=num_layers,output_shape=output_shape,
                         projection_shape=projection_shape_for_head*num_heads,bound_std=bound_std)
         self._DE = DE()
+    
+
 
 
     def call(self, inputs):
 
-        x, y, n_C, n_T, training = inputs
+        x, y, n_C, n_T, training, n_C_s, n_T_s = inputs
+        batch_size = x.shape[0]
         
         x = x[:,:(n_C+n_T) * self.multiply,:]
         y = y[:,:(n_C+n_T) * self.multiply,:]
 
         if self._subsample == True:
             x, y, n_C, n_T, idx_c, idx_t = self._feature_wrapper.subsample(x, y, n_C, n_T)
+            n_C = n_C_s
+            n_T = n_T_s
 
         #x and y have shape batch size x length x dim
         # if training == True:    
@@ -54,9 +59,7 @@ class atp_pipeline(keras.models.Model):
         # print("y shape after permute:", y.shape)
         # permute returns y with shape batch size x NONE x dim ****** check this issue! ******
         ######## make mask #######
-        
-        mask = self._feature_wrapper.masker(n_C, n_T, self.multiply)
-        print("mask shape:", mask.shape)
+        mask = self._feature_wrapper.masker(n_C, n_T)
 
         if self.multiply == 1:
             x_emb = [self._feature_wrapper.PE([x[:, :, i][:, :, tf.newaxis], self.enc_dim, self.xmin, self.xmax]) for i in range(x.shape[-1])] 
@@ -118,9 +121,17 @@ class atp_pipeline(keras.models.Model):
             inputs_for_processing = [x_emb_c, zz3, y_diff_c, x_diff_c, d_c, x_n_c, y_n_c, n_C , n_T]
 
         query_x, key_x, value_x, query_xy, key_xy, value_xy = self._feature_wrapper(inputs_for_processing)
-        
+        value_x = tf.reshape(value_x, (value_x.shape[0], n_C + n_T, value_x.shape[-1]))
         y_n_closest = y_n[:, :, :y.shape[-1]] #### need to update this based on how we pick closest point
 
+        # print("query_x", query_x.shape)
+        # print("key_x", key_x.shape)
+        # print("value_x", value_x.shape)
+        # print("query_xy", query_xy.shape)
+        # print("key_xy", key_xy.shape)
+        # print("value_xy", value_xy.shape)
+        # print("mask", mask.shape)
+        # print("y_n_closest", y_n_closest.shape)
         μ, log_σ = self._atp([query_x, key_x, value_x, query_xy, key_xy, value_xy, mask, y_n_closest],training=training)
 
         return μ[:, n_C*self.multiply:], log_σ[:, n_C*self.multiply:]
