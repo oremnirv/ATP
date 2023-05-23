@@ -23,11 +23,11 @@ python training_and_evaluation.py "<type of dataset>" "<model>" num_iterations n
 ```
 where <type of dataset> is for example ETT or exchange, <model> is for example, TNP or taylorformer, where n_C and n_T are the number of context and target points, respectively.
   
-You will have needed to create appropriate folders to store the model weights and evaluation metrics. We have included a folder for the taylorformer on the ETT dataset, with n_T = 96, as an example. Its path is `weights/forecasting/ETT/taylorformer/96`.
+You will have needed to create appropriate folders to store the model weights and evaluation metrics. We have included a folder for the taylorformer on the ETT dataset, with n_T = 96, as an example. Its path is `weights_/forecasting/ETT/taylorformer/96`.
 
 ### Evaluation 
 
-Evaluation metrics (mse and log-likelihood) for each of the repeat runs are saved in the corresponding folder e.g. `weights/forecasting/ETT/taylorformer/96`. The mean and standard deviations are used when reporting the results.
+Evaluation metrics (mse and log-likelihood) for each of the repeat runs are saved in the corresponding folder e.g. `weights_/forecasting/ETT/taylorformer/96`. The mean and standard deviations are used when reporting the results.
   
 ## Results
   
