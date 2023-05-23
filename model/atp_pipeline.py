@@ -49,7 +49,7 @@ class atp_pipeline(keras.models.Model):
         y = y[:,:(n_C+n_T) * self.multiply,:]
 
         if self._subsample == True:
-            x, y, n_C, n_T, idx_c, idx_t = self._feature_wrapper.subsample(x, y, n_C, n_T)
+            x, y = self._feature_wrapper.subsample(x, y, n_C, n_T, n_C_s, n_T_s)
             n_C = n_C_s
             n_T = n_T_s
 
@@ -62,24 +62,47 @@ class atp_pipeline(keras.models.Model):
         mask = self._feature_wrapper.masker(n_C, n_T)
 
         if self.multiply == 1:
-            x_emb = [self._feature_wrapper.PE([x[:, :, i][:, :, tf.newaxis], self.enc_dim, self.xmin, self.xmax]) for i in range(x.shape[-1])] 
+            print(x.shape)
+            x_emb = [self._feature_wrapper.PE([x[:, :, dim_num][:, :, tf.newaxis], self.enc_dim, self.xmin, self.xmax]) for dim_num in range(x.shape[-1])] 
+            print("x_emb shape:", x_emb[0].shape)
             x_emb = tf.concat(x_emb, axis=-1)
+            # print("x_emb shape:", x_emb.shape)  (32, 30, 32) (batch_size, n_C + n_T, enc_dim)
 
             ######## create derivative ########
-            # print(n_C, n_T)
             y_diff, x_diff, d, x_n, y_n = self._DE([y, x, n_C, n_T, training])
+            # if n_C = 20 and n_T = 10:
+                # print("y_diff shape:", y_diff.shape)   (32, 30, 1)
+                # print("x_diff shape:", x_diff.shape) (32, 30, 1)
+                # print("d shape:", d.shape) (32, 30, 2)
+                # print("x_n shape:", x_n.shape) (32, 30, 1)
+                # print("y_n shape:", y_n.shape) (32, 30, 1)
 
             inputs_for_processing = [x_emb, y, y_diff, x_diff, d, x_n, y_n, n_C, n_T]
 
-        else: 
-            batch_size = x.shape[0]
+            
 
+        else: 
+
+            batch_size = x.shape[0]
             inputs_for_processing = []
             eye = tf.eye(self.multiply)
             for i in range(self.multiply):
-                x_emb = [tf.concat([self._feature_wrapper.PE([x[:, i*(n_C + n_T):(i+1)*(n_C + n_T), j][:, :, tf.newaxis], 20, 0.1, 2]), tf.reshape(tf.repeat(eye[:, i][tf.newaxis, :], batch_size*(n_C + n_T), axis=0), (batch_size, -1, self.multiply))], axis=-1) for j in range(x.shape[-1])] 
+                # embed each ts separately and each dimension separately
+                ts_label = tf.reshape(tf.repeat(eye[:, i][tf.newaxis, :], batch_size*(n_C + n_T), axis=0), (batch_size, -1, self.multiply))
+                ts_start = i*(n_C + n_T)
+                ts_end = (i+1)*(n_C + n_T)
+                x_emb = [tf.concat([self._feature_wrapper.PE([x[:, ts_start:ts_end, dim_num][:, :, tf.newaxis], self.enc_dim, self.xmin, self.xmax]), ts_label], axis=-1) for dim_num in range(x.shape[-1])] 
+                print("x_emb shape:", x_emb[0].shape)
                 x_emb = tf.concat(x_emb, axis=-1)
+                print("x_emb shape:", x_emb.shape)
+                # take derivative of each ts separately
                 y_diff, x_diff, d, x_n, y_n = self._DE([y[:, i*(n_C + n_T):(i+1)*(n_C + n_T)], x[:, i*(n_C + n_T):(i+1)*(n_C + n_T), 0][:, :, np.newaxis], n_C, n_T, True])
+                print("y_diff shape:", y_diff.shape)
+                print("x_diff shape:", x_diff.shape)
+                print("d shape:", d.shape)
+                print("x_n shape:", x_n.shape)
+                print("y_n shape:", y_n.shape)
+
                 inputs_for_processing.append([x_emb, y[:, i*(n_C + n_T):(i+1)*(n_C + n_T)][:, :, np.newaxis], y_diff, x_diff, d, x_n, y_n, n_C, n_T])  
 
             x_emb_a = tf.concat([inputs_for_processing[i][0][:, :n_C, :] for i in range(len(inputs_for_processing))], axis=1)

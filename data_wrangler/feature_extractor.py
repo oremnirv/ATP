@@ -1,5 +1,7 @@
 import numpy as np
 import tensorflow as tf
+from data_wrangler import feature_extractor, dataset_preparer
+from data_wrangler import batcher
     
 
 class feature_wrapper(tf.keras.layers.Layer):
@@ -65,25 +67,35 @@ class feature_wrapper(tf.keras.layers.Layer):
 
             return x_permuted,  y_permuted
         
-    def subsample(self, x, y, n_C, n_T, n_C_s=10, n_T_s=20):
+    def sorted_rand_idx(self,  n, num_idxs):
+        return  tf.sort((tf.reshape(tf.argsort(tf.random.normal([n])), [-1]))[:num_idxs])
+        
+    def gather_idx_from_tensors(self,  tensor_list,  indices_list):
+        for i in range(len(tensor_list)):
+            tensor_list[i] = tf.gather(tensor_list[i], indices_list[i], axis=1)
+        return tensor_list
 
-        # n_C_s = tf.random.uniform(minval=3, maxval=n_C, shape=[], dtype=tf.int32)
-        # n_T_s = tf.random.uniform(minval=2, maxval=n_T, shape=[], dtype=tf.int32)
-        # print(n_C_s, n_T_s)
-        # n_C_vec = tf.reshape(tf.repeat([1.], n_C_s), [1, -1])
-        # n_T_vec = tf.reshape(tf.repeat([1.], n_T_s), [1, -1])
-        # indices_c = (tf.reshape(tf.argsort(tf.random.normal(n_C_vec, n_C_s)), [-1])).y
-        # indices_t = (tf.reshape(tf.sort(tf.random.normal(n_T_vec, n_T_s)), [-1])).y
+    def subsample(self, x, y, n_C, n_T, n_C_s, n_T_s):
+        """
+        Subsample the context and target points.
+        x and y are tensors of shape (B, n_C+n_T, d)
+        n_C_s and n_T_s are the number of context and target points to subsample
 
-        indices_c = (tf.reshape(tf.argsort(tf.random.normal([n_C_s])), [-1]))
-        indices_t = (tf.reshape(tf.argsort(tf.random.normal([n_T_s])), [-1]))
-        xc = tf.gather(x[:, :n_C, :], indices_c, axis=1)
-        xt = tf.gather(x[:, n_C:n_C+n_T, :], indices_t, axis=1)
-        x = tf.concat([xc, xt], axis=1)
-        yc = tf.gather(y[:, :n_C, :], indices_c, axis=1)
-        yt = tf.gather(y[:, n_C:n_C+n_T, :], indices_t, axis=1)
-        y = tf.concat([yc, yt], axis=1)
-        return x, y, tf.shape(indices_c)[0], tf.shape(indices_t)[0], indices_c, indices_t
+        Returns:
+            x, y: tensors of shape (B, n_C_s+n_T_s, d)
+        """
+
+        indices_c = self.sorted_rand_idx(n_C, n_C_s)
+        print("indices c: ", indices_c)
+        indices_t = self.sorted_rand_idx(n_T, n_T_s)
+
+        tensors_x = self.gather_idx_from_tensors([x[:, :n_C, :], x[:, n_C:n_C+n_T, :]], [indices_c, indices_t])
+        x = tf.concat(tensors_x, axis=1)
+
+        tensors_y = self.gather_idx_from_tensors([y[:, :n_C, :], y[:, n_C:n_C+n_T, :]], [indices_c, indices_t])
+        y = tf.concat(tensors_y, axis=1)
+        
+        return x, y
         
         
     def PE(self,  inputs):  # return.shape=(T, B, d)
@@ -387,3 +399,12 @@ class DE(tf.keras.layers.Layer):
 # def date_to_numeric(col):
 #     datetime = pd.to_datetime(col)
 #     return datetime.dt.hour,  datetime.dt.day,  datetime.dt.month,  datetime.dt.year
+
+
+if __name__ == 'main':
+    ## test subsample function with real data
+    x_train, y_train, x_val, y_val, x_test, y_test = dataset_preparer.dataset_processor(path_to_data="datasets/ETTm2.csv") 
+    idx_list = list(np.arange(0, x_train.shape[0] - 25, 1))
+    x, y, _, _ = batcher.batcher(x_train, y_train, idx_list=idx_list, window=70, batch_s=1)
+    f = feature_extractor.feature_wrapper()
+    x1, y1 = f.subsample(x[np.newaxis, :, np.newaxis], y[np.newaxis, :, np.newaxis], 20, 10, 5, 5)
