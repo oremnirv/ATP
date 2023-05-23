@@ -1,13 +1,12 @@
 #!/usr/bin/env python
 
-from model import atp_graph, losses
+from model import taylorformer_graph, losses
 from data_wrangler import synthetic_data_gen, feature_extractor
 import keras
 import numpy as np
 import tensorflow as tf
-from model import atp_pipeline
+from model import taylorformer_pipeline
 from comparison_models.tnp import tnp_pipeline
-from comparison_models.gru import gru_pipeline
 from data_wrangler import dataset_preparer
 import argparse
 from data_wrangler.batcher import batcher, batcher_np
@@ -28,11 +27,8 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    if args.dataset == "weather":
-        x_train, y_train, x_val, y_val, x_test, y_test = dataset_preparer.weather_processor(path_to_weather_data="datasets/weather.csv") 
-        save_dir = "weights/forecasting/weather"
 
-    elif args.dataset == "exchange":
+    if args.dataset == "exchange":
         x_train, y_train, x_val, y_val, x_test, y_test = dataset_preparer.dataset_processor(path_to_data="datasets/exchange.csv") 
         save_dir = "weights/forecasting/exchange"
         print('make sure to create the exchange folder in weights/forecasting/')
@@ -86,17 +82,14 @@ if __name__ == "__main__":
         run= args.run + repeat
         tf.random.set_seed(run)
 
-        if args.model == "atp":
-            model = atp_pipeline.instantiate_atp(args.dataset)
+        if args.model == "taylorformer":
+            model = taylorformer_pipeline.instantiate_taylorformer(args.dataset)
         
         if args.model == "tnp":
             model = tnp_pipeline.instantiate_tnp(args.dataset)
 
-        if args.model == "gru":
-            model = gru_pipeline.instantiate_gru(args.dataset)
-            print('fails if doesnt have tf.device("/CPU:0") before training loop starts')
-
-        tr_step = atp_graph.build_graph()
+    
+        tr_step = taylorformer_graph.build_graph()
         
         ###### can we put the name of the model into the folder name #########?
 
