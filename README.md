@@ -29,6 +29,12 @@ You will have needed to create appropriate folders to store the model weights an
 
 Evaluation metrics (mse and log-likelihood) for each of the repeat runs are saved in the corresponding folder e.g. `weights_/forecasting/ETT/taylorformer/96`. The mean and standard deviations are used when reporting the results.
   
+### Load pre-trained model 
+
+```
+python pre_trained_model_ex.py 0 37
+```
+  
 ## Results
   
 We show our results on the forecasting datasets. More results can be found in the paper.
