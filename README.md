@@ -31,6 +31,9 @@ Evaluation metrics (mse and log-likelihood) for each of the repeat runs are save
   
 ### Load pre-trained model 
 
+ Here is an example of how to load a pre-trained model for the ETT dataset with the Taylorformer for the target-96-context-96 setting.
+  
+  
 ```
 python pre_trained_model_ex.py 0 37
 ```
