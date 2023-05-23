@@ -1,6 +1,4 @@
-###########################
-# Author: Omer Nivron
-###########################
+
 import tensorflow as tf
 
 

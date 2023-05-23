@@ -1,7 +1,6 @@
 import tensorflow as tf
 from model import dot_prod
 
-########## need to switch the dropout to after the second dense layer in the FFN######
 
 class FFN_1(tf.keras.layers.Layer):
     def __init__(self, output_shape, dropout_rate=0.1):
@@ -25,7 +24,6 @@ class FFN_1(tf.keras.layers.Layer):
         x = self.dense_b(x)
         x = tf.nn.gelu(x)
         x = self.dropout(x, training=training)
-        # print(x) ### dropout works 
         x = self.dense_c(x)
         x += x_skip
         return self.layernorm[1](x)
@@ -51,7 +49,6 @@ class FFN_o(tf.keras.layers.Layer):
         x = self.dense_b(x)
         x = tf.nn.gelu(x)
         x = self.dropout(x, training=training)
-        # print(x) ### dropout works
         x = self.dense_c(x)
         x += x_skip
         return self.layernorm[1](x)
@@ -69,7 +66,6 @@ class MHA_X_a(tf.keras.layers.Layer):
     def call(self, query, key, value, mask, training = True):
         x = self.mha(query, key, value, mask)
         x = self.ffn(x, query, training=training)  # Shape `(batch_size, seq_len, output_shape)`.
-        # print(x) ### works in repeated runs
         return x
 
 class MHA_XY_a(tf.keras.layers.Layer):
@@ -85,7 +81,6 @@ class MHA_XY_a(tf.keras.layers.Layer):
     def call(self, query, key, value, mask, training=True):
         x = self.mha(query, key, value, mask)
         x = self.ffn(x, query, training=training)  # Shape `(batch_size, seq_len, output_shape)`.
-        # print(x)   ### works in repeated runs
 
         return x
 
@@ -103,7 +98,6 @@ class MHA_X_b(tf.keras.layers.Layer):
     def call(self, query, key, value, mask, training = True):
         x = self.mha(query, key, value, mask)
         x = self.ffn(x, query, training = training)  # Shape `(batch_size, seq_len, output_shape)`.
-        # print(x)   ### works in repeated runs
 
         return x
 
@@ -121,7 +115,6 @@ class MHA_XY_b(tf.keras.layers.Layer):
     def call(self, query, key, value, mask, training=True):
         x = self.mha(query, key, value, mask)
         x = self.ffn(x, query, training=training)  # Shape `(batch_size, seq_len, output_shape)`.
-        # print(x)   ### works in repeated runs
 
         return x
 
