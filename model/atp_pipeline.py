@@ -1,6 +1,7 @@
 import tensorflow as tf
 from tensorflow import keras
 import numpy as np
+from data_wrangler.batcher import batcher, batcher_np, batcher_bc
 from data_wrangler.feature_extractor import  DE, feature_wrapper
 from model.atp import ATP
 from model.atp_no_leakage import ATP as ATP_no_leakage
@@ -174,3 +175,17 @@ def instantiate_atp(dataset,training=True):
             
         
 
+if __name__ == 'main':
+    multiply = 2
+    x, y, _, _ = batcher(x_train, y_train, idx_list=idx_list, window=n_C + n_T)
+    ### test the one hot encoding of the ts, change multiply (above) to test different ts labels
+    for i in range(multiply):
+        n_C_s, n_T_s = 20, 10
+        n_C, n_T = 96, 192
+        batch_size = x.shape[0]
+        eye = tf.eye(multiply)
+        ts_label = tf.reshape(tf.repeat(eye[:, i][tf.newaxis, :], batch_size*(n_C + n_T), axis=0), (batch_size, -1, multiply)) # one hot encoding of the ts
+        print("ts_label", ts_label)
+    #####
+
+    

@@ -12,10 +12,11 @@ class feature_wrapper(tf.keras.layers.Layer):
     def call(self,  inputs):
     
         x_emb,  y,  y_diff,  x_diff,  d,  x_n,  y_n,  n_C,  n_T = inputs # (batch_s, multiply * (n_C + n_T), enc_dim + multiply) (batch_s, multiply * (n_C + n_T), 1) (batch_s, multiply * (n_C + n_T), 1) (batch_s, multiply * (n_C + n_T), 1) (batch_s, multiply * (n_C + n_T), 2) (batch_s, multiply * (n_C + n_T), 1) (batch_s, multiply * (n_C + n_T), 1)
+    
         ##### inputs for the MHA-X head ######
         value_x =  tf.identity(y) #check if identity is needed
         ### check what is happening with embedding
-        x_prime =  tf.concat([x_emb,  x_diff,  x_n],  axis=2) (batch_s, multiply * (n_C + n_T), enc_dim + multiply + 2)
+        x_prime =  tf.concat([x_emb,  x_diff,  x_n],  axis=2) # (batch_s, multiply * (n_C + n_T), enc_dim + multiply + 2)
         query_x = tf.identity(x_prime)
         key_x = tf.identity(x_prime)
 
@@ -23,24 +24,19 @@ class feature_wrapper(tf.keras.layers.Layer):
         y_prime = tf.concat([y,  y_diff,  d,  y_n], axis=-1)
         batch_s = tf.shape(y_prime)[0]
         key_xy_label = tf.zeros((batch_s,  (n_C* self.multiply)+(n_T* self.multiply),  1))
-        # print(y_prime.shape,  key_xy_label.shape,  x_prime.shape)
         value_xy = tf.concat([y_prime,  key_xy_label,  x_prime], axis=-1)
         key_xy = tf.identity(value_xy)
 
         query_xy_label = tf.concat([tf.zeros((batch_s,  n_C * self.multiply,  1)), tf.ones((batch_s,  n_T* self.multiply,  1))],  axis=1)
         y_prime_masked = tf.concat([self.mask_target_pt([y,  n_C* self.multiply,  n_T* self.multiply]),  self.mask_target_pt([y_diff,  n_C* self.multiply,  n_T* self.multiply]),  self.mask_target_pt([d,  n_C* self.multiply,  n_T* self.multiply]),  y_n],  axis=2)
 
-        ############# i think last dim of maskign function for d should be dim_x as well as there is a separate derivative in each x dimension #########
-
         query_xy = tf.concat([y_prime_masked,  query_xy_label,  x_prime], axis=-1)
-        # print(query_xy.shape,  key_xy.shape,  value_xy.shape,  query_x.shape,  key_x.shape,  value_x.shape)
         return query_x,  key_x,  value_x,  query_xy,  key_xy,  value_xy
 
     def mask_target_pt(self,  inputs):
         y,  n_C,  n_T = inputs
         dim_y = y.shape[-1]
         batch_s = y.shape[0]
-        # print(y.shape,  n_C,  n_T,  dim_y,  batch_s)
 
         mask_y = tf.concat([y[:,  :n_C],  tf.zeros((batch_s,  n_T,  dim_y))],  axis=1)
         return mask_y
