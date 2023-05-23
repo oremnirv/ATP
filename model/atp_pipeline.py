@@ -37,18 +37,89 @@ class atp_pipeline(keras.models.Model):
                         projection_shape=projection_shape_for_head*num_heads,bound_std=bound_std)
         self._DE = DE()
     
+    def concat_context_multi_ts(self, list_of_inputs, dim, n_C):
+        return tf.concat([list_of_inputs[i][dim][:, :n_C, :] for i in range(len(list_of_inputs))], axis=1)
+
+    def concat_target_multi_ts(self, list_of_inputs, dim, n_C, n_T, last_dim):
+        x = tf.concat([list_of_inputs[i][dim][:, n_C:n_C+n_T, :][:, :, tf.newaxis, :] for i in range(len(list_of_inputs))], axis=2)
+        x = tf.reshape(x, (x.shape[0], -1, last_dim))
+        return x
+
+    def inputs_for_multi_ts(self, x, y, n_C, n_T, n_C_s, n_T_s):
+        batch_size = x.shape[0]
+        inputs_for_processing = []
+        eye = tf.eye(self.multiply)
+        for i in range(self.multiply):
+
+            # embed each ts separately and each dimension separately
+            ts_label = tf.reshape(tf.repeat(eye[:, i][tf.newaxis, :], batch_size*(n_C + n_T), axis=0), (batch_size, -1, self.multiply)) # one hot encoding of the ts
+            ts_start = i*(n_C + n_T)
+            ts_end = (i+1)*(n_C + n_T)
+
+            if self._subsample == True:
+                x_temp, y_temp = self._feature_wrapper.subsample(x[:, ts_start:ts_end, :], y[:, ts_start:ts_end, :], n_C, n_T, n_C_s, n_T_s)
+                n_C = n_C_s
+                n_T = n_T_s
+                ts_label = tf.reshape(tf.repeat(eye[:, i][tf.newaxis, :], batch_size*(n_C + n_T), axis=0), (batch_size, -1, self.multiply)) # overwrites the previous ts_label
+
+            else:
+                x_temp = x[:, ts_start:ts_end, :]
+                y_temp = y[:, ts_start:ts_end, :]
+
+            x_emb = [tf.concat([self._feature_wrapper.PE([x_temp[:, :, dim_num][:, :, tf.newaxis], self.enc_dim, self.xmin, self.xmax]), ts_label], axis=-1) for dim_num in range(x_temp.shape[-1])] 
+            x_emb = tf.concat(x_emb, axis=-1) # (32, 30, 34)
+            # take derivative of each ts separately
+            y_diff, x_diff, d, x_n, y_n = self._DE([y_temp, x_temp, n_C, n_T, True]) #  (32, 30, 1),  (32, 30, 1), (32, 30, 2), (32, 30, 1), (32, 30, 1)
+
+            inputs_for_processing.append([x_emb, y_temp[:, :, np.newaxis], y_diff, x_diff, d, x_n, y_n])  
+
+        # the end sequence will be (y_11,.., y_1n_C, y21, ..y_2n_C, y1*, y2*, ..yk*, y1**, y2**, ..yk**)
+
+        x_context = self.concat_context_multi_ts(inputs_for_processing, 0, n_C)
+        x_target = self.concat_target_multi_ts(inputs_for_processing, 0, n_C, n_T, x_context.shape[-1])
+        x_emb_c = tf.concat([x_context, x_target], axis=1)
+
+
+        y_context = self.concat_context_multi_ts(inputs_for_processing, 1, n_C)[:, :, :, 0]
+        y_target = self.concat_target_multi_ts(inputs_for_processing, 1, n_C, n_T, 1)
+        zz3 = tf.concat([y_context, y_target], axis=1)
+
+        y_context_diff = self.concat_context_multi_ts(inputs_for_processing, 2, n_C)
+        y_target_diff = self.concat_target_multi_ts(inputs_for_processing, 2, n_C, n_T, y_context_diff.shape[-1])
+        y_diff_c = tf.concat([y_context_diff, y_target_diff], axis=1)
+
+        x_context_diff = self.concat_context_multi_ts(inputs_for_processing, 3, n_C)
+        x_target_diff = self.concat_target_multi_ts(inputs_for_processing, 3, n_C, n_T, x_context_diff.shape[-1])
+        x_diff_c = tf.concat([x_context_diff, x_target_diff], axis=1)
+
+        d_context = self.concat_context_multi_ts(inputs_for_processing, 4, n_C)
+        d_target = self.concat_target_multi_ts(inputs_for_processing, 4, n_C, n_T, d_context.shape[-1])
+        d_c = tf.concat([d_context, d_target], axis=1)
+
+        x_n_context = self.concat_context_multi_ts(inputs_for_processing, 5, n_C)
+        x_n_target = self.concat_target_multi_ts(inputs_for_processing, 5, n_C, n_T, x_n_context.shape[-1])
+        x_n_c = tf.concat([x_n_context, x_n_target], axis=1)
+
+        y_n_context = self.concat_context_multi_ts(inputs_for_processing, 6, n_C)
+        y_n_target = self.concat_target_multi_ts(inputs_for_processing, 6, n_C, n_T, y_n_context.shape[-1])
+
+        y_n_c = tf.concat([y_n_context, y_n_target], axis=1)
+        y_n = y_n_c
+        inputs_for_processing = [x_emb_c, zz3, y_diff_c, x_diff_c, d_c, x_n_c, y_n_c, n_C , n_T]
+        return inputs_for_processing, y_n, n_C, n_T
+
+
 
 
 
     def call(self, inputs):
 
-        x, y, n_C, n_T, training, n_C_s, n_T_s = inputs
-        batch_size = x.shape[0]
+        x, y, n_C, n_T, training, n_C_s, n_T_s = inputs #  (batch_size, n_C + n_T, 1), (batch_size, n_C + n_T, 1)
         
         x = x[:,:(n_C+n_T) * self.multiply,:]
         y = y[:,:(n_C+n_T) * self.multiply,:]
 
-        if self._subsample == True:
+        if (self._subsample == True) and (self.multiply == 1):
             x, y = self._feature_wrapper.subsample(x, y, n_C, n_T, n_C_s, n_T_s)
             n_C = n_C_s
             n_T = n_T_s
@@ -59,102 +130,25 @@ class atp_pipeline(keras.models.Model):
         # print("y shape after permute:", y.shape)
         # permute returns y with shape batch size x NONE x dim ****** check this issue! ******
         ######## make mask #######
-        mask = self._feature_wrapper.masker(n_C, n_T)
+        
 
         if self.multiply == 1:
-            print(x.shape)
             x_emb = [self._feature_wrapper.PE([x[:, :, dim_num][:, :, tf.newaxis], self.enc_dim, self.xmin, self.xmax]) for dim_num in range(x.shape[-1])] 
-            print("x_emb shape:", x_emb[0].shape)
-            x_emb = tf.concat(x_emb, axis=-1)
-            # print("x_emb shape:", x_emb.shape)  (32, 30, 32) (batch_size, n_C + n_T, enc_dim)
+            x_emb = tf.concat(x_emb, axis=-1)  #(32, 30, 32) (batch_size, n_C + n_T, enc_dim) 
 
             ######## create derivative ########
-            y_diff, x_diff, d, x_n, y_n = self._DE([y, x, n_C, n_T, training])
-            # if n_C = 20 and n_T = 10:
-                # print("y_diff shape:", y_diff.shape)   (32, 30, 1)
-                # print("x_diff shape:", x_diff.shape) (32, 30, 1)
-                # print("d shape:", d.shape) (32, 30, 2)
-                # print("x_n shape:", x_n.shape) (32, 30, 1)
-                # print("y_n shape:", y_n.shape) (32, 30, 1)
-
+            y_diff, x_diff, d, x_n, y_n = self._DE([y, x, n_C, n_T, training]) #  (32, 30, 1), (32, 30, 1), (32, 30, 2), (32, 30, 1), (32, 30, 1) [n_C = 20 and n_T = 10]
             inputs_for_processing = [x_emb, y, y_diff, x_diff, d, x_n, y_n, n_C, n_T]
-
-            
 
         else: 
 
-            batch_size = x.shape[0]
-            inputs_for_processing = []
-            eye = tf.eye(self.multiply)
-            for i in range(self.multiply):
-                # embed each ts separately and each dimension separately
-                ts_label = tf.reshape(tf.repeat(eye[:, i][tf.newaxis, :], batch_size*(n_C + n_T), axis=0), (batch_size, -1, self.multiply))
-                ts_start = i*(n_C + n_T)
-                ts_end = (i+1)*(n_C + n_T)
-                x_emb = [tf.concat([self._feature_wrapper.PE([x[:, ts_start:ts_end, dim_num][:, :, tf.newaxis], self.enc_dim, self.xmin, self.xmax]), ts_label], axis=-1) for dim_num in range(x.shape[-1])] 
-                print("x_emb shape:", x_emb[0].shape)
-                x_emb = tf.concat(x_emb, axis=-1)
-                print("x_emb shape:", x_emb.shape)
-                # take derivative of each ts separately
-                y_diff, x_diff, d, x_n, y_n = self._DE([y[:, i*(n_C + n_T):(i+1)*(n_C + n_T)], x[:, i*(n_C + n_T):(i+1)*(n_C + n_T), 0][:, :, np.newaxis], n_C, n_T, True])
-                print("y_diff shape:", y_diff.shape)
-                print("x_diff shape:", x_diff.shape)
-                print("d shape:", d.shape)
-                print("x_n shape:", x_n.shape)
-                print("y_n shape:", y_n.shape)
+            # # the end sequence will be (y_11,.., y_1n_C, y21, ..y_2n_C, y1*, y2*, ..yk*, y1**, y2**, ..yk**)
+            inputs_for_processing, y_n, n_C, n_T = self.inputs_for_multi_ts(x, y, n_C, n_T, n_C_s, n_T_s)
 
-                inputs_for_processing.append([x_emb, y[:, i*(n_C + n_T):(i+1)*(n_C + n_T)][:, :, np.newaxis], y_diff, x_diff, d, x_n, y_n, n_C, n_T])  
-
-            x_emb_a = tf.concat([inputs_for_processing[i][0][:, :n_C, :] for i in range(len(inputs_for_processing))], axis=1)
-            x_emb_b = tf.concat([inputs_for_processing[i][0][:, n_C:n_C+n_T, :][:, :, tf.newaxis, :] for i in range(len(inputs_for_processing))], axis=2)
-            x_emb_b = tf.reshape(x_emb_b, (x_emb_b.shape[0], -1, x_emb_a.shape[-1]))
-            x_emb_c = tf.concat([x_emb_a, x_emb_b], axis=1)
-
-            zz1 = tf.concat([inputs_for_processing[i][1][:, :n_C, :, 0] for i in range(len(inputs_for_processing))], axis=1)
-            zz2 = tf.concat([inputs_for_processing[i][1][:, n_C:n_C+n_T, :, 0] for i in range(len(inputs_for_processing))], axis=2)
-            zz2 = tf.reshape(zz2, (zz2.shape[0], -1, 1))
-            zz3 = tf.concat([zz1, zz2], axis=1)
-
-
-            y_diff_a = tf.concat([inputs_for_processing[i][2][:, :n_C, :] for i in range(len(inputs_for_processing))], axis=1)
-            y_diff_b = tf.concat([inputs_for_processing[i][2][:, n_C:n_C+n_T, :] for i in range(len(inputs_for_processing))], axis=2)
-            y_diff_b = tf.reshape(y_diff_b, (y_diff_b.shape[0], -1, y_diff_a.shape[-1]))
-            y_diff_c = tf.concat([y_diff_a, y_diff_b], axis=1)
-
-            x_diff_a = tf.concat([inputs_for_processing[i][3][:, :n_C, :] for i in range(len(inputs_for_processing))], axis=1)
-            x_diff_b = tf.concat([inputs_for_processing[i][3][:, n_C:n_C+n_T, :] for i in range(len(inputs_for_processing))], axis=2)
-            x_diff_b = tf.reshape(x_diff_b, (x_diff_b.shape[0], -1, x_diff_a.shape[-1]))
-            x_diff_c = tf.concat([x_diff_a, x_diff_b], axis=1)
-
-            d_a = tf.concat([inputs_for_processing[i][4][:, :n_C, :] for i in range(len(inputs_for_processing))], axis=1)
-            d_b = tf.concat([inputs_for_processing[i][4][:, n_C:n_C+n_T, :][:, :, tf.newaxis, :] for i in range(len(inputs_for_processing))], axis=2)
-            d_b = tf.reshape(d_b, (d_b.shape[0], -1, d_a.shape[-1]))
-            d_c = tf.concat([d_a, d_b], axis=1)
-
-            x_n_a = tf.concat([inputs_for_processing[i][5][:, :n_C, :] for i in range(len(inputs_for_processing))], axis=1)
-            x_n_b = tf.concat([inputs_for_processing[i][5][:, n_C:n_C+n_T, :] for i in range(len(inputs_for_processing))], axis=2)
-            x_n_b = tf.reshape(x_n_b, (x_n_b.shape[0], -1, x_n_a.shape[-1]))
-            x_n_c = tf.concat([x_n_a, x_n_b], axis=1)
-
-            y_n_a = tf.concat([inputs_for_processing[i][6][:, :n_C, :] for i in range(len(inputs_for_processing))], axis=1)
-            y_n_b = tf.concat([inputs_for_processing[i][6][:, n_C:n_C+n_T, :] for i in range(len(inputs_for_processing))], axis=2)
-            y_n_b = tf.reshape(y_n_b, (y_n_b.shape[0], -1, y_n_a.shape[-1]))
-            y_n_c = tf.concat([y_n_a, y_n_b], axis=1)
-            y_n = y_n_c
-            inputs_for_processing = [x_emb_c, zz3, y_diff_c, x_diff_c, d_c, x_n_c, y_n_c, n_C , n_T]
-
-        query_x, key_x, value_x, query_xy, key_xy, value_xy = self._feature_wrapper(inputs_for_processing)
-        value_x = tf.reshape(value_x, (value_x.shape[0], n_C + n_T, value_x.shape[-1]))
+        query_x, key_x, value_x, query_xy, key_xy, value_xy = self._feature_wrapper(inputs_for_processing) #  (batch_size, multiply *(n_C_s + n_T_s), enc_dim + multiply + x_diff.dim + x_n.dim), (batch_size, multiply *(n_C_s + n_T_s), enc_dim + multiply + x_diff.dim + x_n.dim) , (batch_size, multiply *(n_C_s + n_T_s), 1), (batch_size, multiply *(n_C_s + n_T_s), enc.dim + multiply + 2 + label.dim + y.dim + y_diff.dim + d.dim + y_n.dim)
+        value_x = tf.reshape(value_x, (value_x.shape[0], self.multiply * (n_C + n_T), value_x.shape[-1]))
         y_n_closest = y_n[:, :, :y.shape[-1]] #### need to update this based on how we pick closest point
-
-        # print("query_x", query_x.shape)
-        # print("key_x", key_x.shape)
-        # print("value_x", value_x.shape)
-        # print("query_xy", query_xy.shape)
-        # print("key_xy", key_xy.shape)
-        # print("value_xy", value_xy.shape)
-        # print("mask", mask.shape)
-        # print("y_n_closest", y_n_closest.shape)
+        mask = self._feature_wrapper.masker(n_C, n_T)
         μ, log_σ = self._atp([query_x, key_x, value_x, query_xy, key_xy, value_xy, mask, y_n_closest],training=training)
 
         return μ[:, n_C*self.multiply:], log_σ[:, n_C*self.multiply:]

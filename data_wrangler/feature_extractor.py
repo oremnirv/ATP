@@ -11,11 +11,11 @@ class feature_wrapper(tf.keras.layers.Layer):
 
     def call(self,  inputs):
     
-        x_emb,  y,  y_diff,  x_diff,  d,  x_n,  y_n,  n_C,  n_T = inputs ##think about clearer notation
-        # print(x_emb.shape,  y.shape,  y_diff.shape,  x_diff.shape,  d.shape,  x_n.shape,  y_n.shape,  n_C,  n_T)
+        x_emb,  y,  y_diff,  x_diff,  d,  x_n,  y_n,  n_C,  n_T = inputs # (batch_s, multiply * (n_C + n_T), enc_dim + multiply) (batch_s, multiply * (n_C + n_T), 1) (batch_s, multiply * (n_C + n_T), 1) (batch_s, multiply * (n_C + n_T), 1) (batch_s, multiply * (n_C + n_T), 2) (batch_s, multiply * (n_C + n_T), 1) (batch_s, multiply * (n_C + n_T), 1)
         ##### inputs for the MHA-X head ######
         value_x =  tf.identity(y) #check if identity is needed
-        x_prime =  tf.concat([x_emb,  x_diff,  x_n],  axis=2) ### check what is happening with embedding
+        ### check what is happening with embedding
+        x_prime =  tf.concat([x_emb,  x_diff,  x_n],  axis=2) (batch_s, multiply * (n_C + n_T), enc_dim + multiply + 2)
         query_x = tf.identity(x_prime)
         key_x = tf.identity(x_prime)
 
@@ -86,7 +86,7 @@ class feature_wrapper(tf.keras.layers.Layer):
         """
 
         indices_c = self.sorted_rand_idx(n_C, n_C_s)
-        print("indices c: ", indices_c)
+        # print("indices c: ", indices_c)
         indices_t = self.sorted_rand_idx(n_T, n_T_s)
 
         tensors_x = self.gather_idx_from_tensors([x[:, :n_C, :], x[:, n_C:n_C+n_T, :]], [indices_c, indices_t])
@@ -149,8 +149,7 @@ class DE(tf.keras.layers.Layer):
         
         y_values,  x_values,  context_n,  target_m = inputs
 
-        # print("y_values.shape",  y_values.shape)
-        # print("x_values.shape",  x_values.shape)
+        # print("x_values.shape") (32, 30, 1)
         epsilon = 0.000002 
 
         batch_size = y_values.shape[0]
@@ -161,15 +160,12 @@ class DE(tf.keras.layers.Layer):
 
         #context section
 
-        current_x = tf.expand_dims(x_values[:,  :context_n], axis=2)
-        current_y = tf.expand_dims(y_values[:,  :context_n], axis=2)
-        print("current_x.shape",  current_x.shape)
-        print("current_y.shape",  current_y.shape)
+        current_x = tf.expand_dims(x_values[:,  :context_n], axis=2) # (32, 20, 1, 1)
+        current_y = tf.expand_dims(y_values[:,  :context_n], axis=2) # (32, 20, 1, 1)
 
-        print("x_values.shape",  x_values.shape)
+
         x_temp = x_values[:, :context_n]
-        x_temp = tf.repeat(tf.expand_dims(x_temp,  axis=1),  axis=1,  repeats=context_n)
-        print("x_temp.shape",  x_temp.shape)
+        x_temp = tf.repeat(tf.expand_dims(x_temp,  axis=1),  axis=1,  repeats=context_n) #x_temp.shape (32, 20, 20, 1)
 
         y_temp = y_values[:, :context_n]
         y_temp = tf.repeat(tf.expand_dims(y_temp,  axis=1),  axis=1,  repeats=context_n)
@@ -212,7 +208,7 @@ class DE(tf.keras.layers.Layer):
         x_mask_inv = (x_mask == False)
         x_mask_float = tf.cast(x_mask_inv, "float32")*1000
         x_mask_float_repeat = tf.repeat(tf.expand_dims(x_mask_float, axis=0), axis=0, repeats=batch_size)
-        # print(x_mask_float_repeat.shape)
+
         ix = tf.argsort(tf.cast(tf.math.reduce_euclidean_norm((current_x - x_temp), 
                                             axis=-1), dtype="float32") + x_mask_float_repeat, axis=-1)[:, :, 1]
 
