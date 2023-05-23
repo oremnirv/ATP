@@ -2,14 +2,14 @@ import tensorflow as tf
 from tensorflow import keras
 import numpy as np
 from data_wrangler.feature_extractor import  DE, feature_wrapper
-from model.atp_no_leakage_xxx import ATP as ATP_no_leakage_xxx
+from model.taylorformer import taylorformer as taylorformer
 
 
 
-class atp_pipeline(keras.models.Model):
+class taylorformer_pipeline(keras.models.Model):
     
     def __init__(self, num_heads=4, projection_shape_for_head=4, output_shape=64, rate=0.1, permutation_repeats=1,
-                 bound_std=False, num_layers=3, enc_dim=32, xmin=0.1, xmax=2, MHAX_leakage=True,**kwargs):
+                 bound_std=False, num_layers=3, enc_dim=32, xmin=0.1, xmax=2, MHAX="xxx",**kwargs):
         super().__init__(**kwargs)
         # for testing set permutation_repeats=0
    
@@ -18,8 +18,8 @@ class atp_pipeline(keras.models.Model):
         self.xmin = xmin
         self.xmax = xmax
         self._feature_wrapper = feature_wrapper()
-        if MHAX_leakage == "xxx":
-            self._atp = ATP_no_leakage_xxx(num_heads=num_heads,dropout_rate=rate,num_layers=num_layers,output_shape=output_shape,
+        if MHAX == "xxx":
+            self._taylorformer = taylorformer(num_heads=num_heads,dropout_rate=rate,num_layers=num_layers,output_shape=output_shape,
                         projection_shape=projection_shape_for_head*num_heads,bound_std=bound_std)
         self._DE = DE()
 
@@ -56,21 +56,21 @@ class atp_pipeline(keras.models.Model):
         
         y_n_closest = y_n[:, :, :y.shape[-1]] 
 
-        μ, log_σ = self._atp([query_x, key_x, value_x, query_xy, key_xy, value_xy, mask, y_n_closest],training=training)
+        μ, log_σ = self._taylorformer([query_x, key_x, value_x, query_xy, key_xy, value_xy, mask, y_n_closest],training=training)
 
         return μ[:, n_C:], log_σ[:, n_C:]
       
 
-def instantiate_atp(dataset,training=True):
+def instantiate_taylorformer(dataset,training=True):
     if dataset == "ETT":
 
-        return atp_pipeline(num_heads=6, projection_shape_for_head=11, output_shape=32, rate=0.05, permutation_repeats=0,
-                 bound_std=False, num_layers=4, enc_dim=32, xmin=0.1, xmax=1,MHAX_leakage="xxx")      
+        return taylorformer_pipeline(num_heads=6, projection_shape_for_head=11, output_shape=32, rate=0.05, permutation_repeats=0,
+                 bound_std=False, num_layers=4, enc_dim=32, xmin=0.1, xmax=1,MHAX="xxx")      
 
     elif dataset == "exchange":
 
-        return atp_pipeline(num_heads=8, projection_shape_for_head=12, output_shape=32, rate=0.05, permutation_repeats=0,
-                 bound_std=False, num_layers=3, enc_dim=32, xmin=0.1, xmax=1,MHAX_leakage="xxx")
+        return taylorformer_pipeline(num_heads=8, projection_shape_for_head=12, output_shape=32, rate=0.05, permutation_repeats=0,
+                 bound_std=False, num_layers=3, enc_dim=32, xmin=0.1, xmax=1,MHAX="xxx")
     else:
         print('choose a valid dataset name')         
             

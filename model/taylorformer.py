@@ -119,7 +119,7 @@ class MHA_XY_b(tf.keras.layers.Layer):
         return x
 
 
-class ATP(tf.keras.Model):
+class taylorformer(tf.keras.Model):
     def __init__(self, num_heads,
                   projection_shape,
                   output_shape,
