@@ -53,6 +53,33 @@ def dataset_processor(path_to_data):
 
         return x_train[:,:,np.newaxis], y_train[:,:,np.newaxis], x_val[:,:,np.newaxis], y_val[:,:,np.newaxis], x_test[:,:,np.newaxis], y_test[:,:,np.newaxis]
 
+def electricity_processor(path_to_data):
+        data = np.load(path_to_data)
+        data = (data[322:323].transpose([1,0])) #shape 14000 x 1
+        
+        time = np.linspace(-1,1,data.shape[0]) # shape 14000
+        time = time[:,np.newaxis] # shape 14000 x 1
+
+        data = np.concatenate([time,data],axis=1) # shape 14000 x 2
+
+
+        training_data = data[:int(0.69*data.shape[0])]
+        val_data = data[int(0.69*data.shape[0]):int(0.8*data.shape[0])]
+        test_data = data[int(0.8*data.shape[0]):]
+
+        #scale
+
+        training_data_scaled = (training_data - np.mean(training_data,axis=0))/np.std(training_data,axis=0)
+        val_data_scaled = (val_data - np.mean(training_data,axis=0))/np.std(training_data,axis=0)
+        test_data_scaled =  (test_data - np.mean(training_data,axis=0))/np.std(training_data,axis=0)
+
+        x_train, y_train = training_data_scaled[:,:1], training_data_scaled[:,-1:]
+        x_val, y_val = val_data_scaled[:,:1], val_data_scaled[:,-1:]
+        x_test, y_test = test_data_scaled[:,:1], test_data_scaled[:,-1:]
+
+        return x_train[:,:,np.newaxis], y_train[:,:,np.newaxis], x_val[:,:,np.newaxis], y_val[:,:,np.newaxis], x_test[:,:,np.newaxis], y_test[:,:,np.newaxis]
+
+
 def gp_data_processor(path_to_data_folder):
 
         x = np.load(path_to_data_folder + "x.npy")

@@ -77,18 +77,30 @@ class atp_pipeline(keras.models.Model):
 
 def instantiate_atp(dataset,training=True):
     if dataset == "ETT":
-        return atp_pipeline(num_heads=4, projection_shape_for_head=4, output_shape=64, rate=0.1, permutation_repeats=1,
-                    bound_std=False, num_layers=2, enc_dim=32, xmin=0.1, xmax=2)
-    elif dataset == "traffic":
-        return atp_pipeline(num_heads=4, projection_shape_for_head=4, output_shape=64, rate=0.1, permutation_repeats=1,
-                    bound_std=False, num_layers=2, enc_dim=32, xmin=0.1, xmax=2)
+        # return atp_pipeline(num_heads=4, projection_shape_for_head=4, output_shape=64, rate=0.1, permutation_repeats=1,
+        #             bound_std=False, num_layers=2, enc_dim=32, xmin=0.1, xmax=2)
+
+        return atp_pipeline(num_heads=6, projection_shape_for_head=11, output_shape=32, rate=0.05, permutation_repeats=0,
+                 bound_std=False, num_layers=4, enc_dim=32, xmin=0.1, xmax=1,MHAX_leakage="xxx")      
+
+    # elif dataset == "traffic":
+    #     return atp_pipeline(num_heads=4, projection_shape_for_head=4, output_shape=64, rate=0.1, permutation_repeats=1,
+    #                 bound_std=False, num_layers=2, enc_dim=32, xmin=0.1, xmax=2)
     elif dataset == "exchange":
         # return atp_pipeline(num_heads=6, projection_shape_for_head=12, output_shape=32, rate=0.0, permutation_repeats=0,
         #          bound_std=False, num_layers=4, enc_dim=32, xmin=0.1, xmax=1)
         #the above is what i used for previous reults
 
-        return atp_pipeline(num_heads=10, projection_shape_for_head=9, output_shape=32, rate=0.05, permutation_repeats=0,
-                 bound_std=False, num_layers=6, enc_dim=32, xmin=0.1, xmax=1,MHAX_leakage="new_block")
+        # return atp_pipeline(num_heads=10, projection_shape_for_head=9, output_shape=32, rate=0.05, permutation_repeats=0,
+        #          bound_std=False, num_layers=6, enc_dim=32, xmin=0.1, xmax=1,MHAX_leakage="new_block")
+
+        return atp_pipeline(num_heads=8, projection_shape_for_head=12, output_shape=32, rate=0.05, permutation_repeats=0,
+                 bound_std=False, num_layers=3, enc_dim=32, xmin=0.1, xmax=1,MHAX_leakage="xxx")
+
+    elif dataset == "electricity":
+        return atp_pipeline(num_heads=6, projection_shape_for_head=11, output_shape=32, rate=0.25, permutation_repeats=0,
+                 bound_std=False, num_layers=4, enc_dim=32, xmin=0.1, xmax=1,MHAX_leakage="xxx")      
+
 
     else:
         print('choose a valid dataset name')         
