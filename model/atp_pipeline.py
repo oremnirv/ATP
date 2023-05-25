@@ -77,6 +77,7 @@ class atp_pipeline(keras.models.Model):
             inputs_for_processing.append([x_emb, y_temp, y_diff, x_diff, d, x_n, y_n])  
 
         if self._bc:
+            # the end sequence will be (y_11,.., y_1n_C, y21, ..y_2n_C2, y1*, y1**, ...,y1****)
             context_list = [self.concat_context_multi_ts(inputs_for_processing, j, n_C[0] + n_T[0]) for j in tf.range(7)]
             x_emb, y, y_diff, x_diff, d, x_n, y_n  = context_list
         else:
@@ -85,7 +86,7 @@ class atp_pipeline(keras.models.Model):
             target_list = [self.concat_target_multi_ts(inputs_for_processing, j, n_C[0], n_T[0], context_list[j].shape[-1]) for j in tf.range(7)]
             x_emb, y, y_diff, x_diff, d, x_n, y_n = [tf.concat([context_list[j], target_list[j]], axis=1) for j in tf.range(7)]
         inputs_for_processing = [x_emb, y, y_diff, x_diff, d, x_n, y_n]
-        return inputs_for_processing, y_n, n_C, n_T
+        return inputs_for_processing, y, y_n, n_C, n_T
 
 
 
@@ -128,7 +129,7 @@ class atp_pipeline(keras.models.Model):
         else: 
 
             # # the end sequence will be (y_11,.., y_1n_C, y21, ..y_2n_C, y1*, y2*, ..yk*, y1**, y2**, ..yk**)
-            inputs_for_processing, y_n, n_C, n_T = self.inputs_for_multi_ts(x, y, n_C, n_T, n_C_s, n_T_s)
+            inputs_for_processing, y, y_n, n_C, n_T = self.inputs_for_multi_ts(x, y, n_C, n_T, n_C_s, n_T_s)
 
 
         if self._bc: # currently w/o subsample
@@ -153,7 +154,7 @@ class atp_pipeline(keras.models.Model):
 
         μ, log_σ = self._atp([query_x, key_x, value_x, query_xy, key_xy, value_xy, mask, y_n_closest], training=training)
 
-        return μ[:, n_C*self.multiply:], log_σ[:, n_C*self.multiply:]
+        return μ[:, n_C*self.multiply:], log_σ[:, n_C*self.multiply:], y[:, n_C*self.multiply:]
       
 
 def instantiate_atp(dataset,training=True):
