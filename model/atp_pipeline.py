@@ -144,9 +144,9 @@ class atp_pipeline(keras.models.Model):
         inputs_for_processing.append(n_T)
         query_x, key_x, value_x, query_xy, key_xy, value_xy = self._feature_wrapper(inputs_for_processing) #  (batch_size, multiply *(n_C_s + n_T_s), enc_dim + multiply + x_diff.dim + x_n.dim), (batch_size, multiply *(n_C_s + n_T_s), enc_dim + multiply + x_diff.dim + x_n.dim) , (batch_size, multiply *(n_C_s + n_T_s), 1), (batch_size, multiply *(n_C_s + n_T_s), enc.dim + multiply + 2 + label.dim + y.dim + y_diff.dim + d.dim + y_n.dim)
         if self._bc: 
-            value_x = tf.reshape(value_x, (value_x.shape[0], (n_C + n_T), value_x.shape[-1]))
-        else:
-            value_x = tf.reshape(value_x, (value_x.shape[0], (n_C + n_T) * self.multiply, value_x.shape[-1]))
+            self.multiply = 1
+            
+        value_x = tf.reshape(value_x, (value_x.shape[0], (n_C + n_T) * self.multiply, value_x.shape[-1]))
         y_n_closest = y_n[:, :, :y.shape[-1]] #### need to update this based on how we pick closest point
         ######## make mask #######
         mask = self._feature_wrapper.masker(n_C, n_T)

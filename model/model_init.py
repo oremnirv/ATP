@@ -18,7 +18,7 @@ class model_init():
             assert model_name in ['leak', 'atp', 'new_block']
             if model_name == 'leak':
                 self.model = atp_pipeline.atp_pipeline(num_heads=6, projection_shape_for_head=11, output_shape=32, rate=0.05, permutation_repeats=0,
-                    bound_std=False, num_layers=4, enc_dim=32, xmin=0.1, xmax=1, MHAX_leakage="True", multiply=self.multiply, bc=self.bc, subsample=self.subsample) 
+                    bound_std=False, num_layers=4, enc_dim=32, xmin=0.1, xmax=1, MHAX_leakage=True, multiply=self.multiply, bc=self.bc, subsample=self.subsample) 
             elif model_name == 'atp':
                 self.model = atp_pipeline.atp_pipeline(num_heads=6, projection_shape_for_head=11, output_shape=32, rate=0.05, permutation_repeats=0,
                     bound_std=False, num_layers=4, enc_dim=32, xmin=0.1, xmax=1, MHAX_leakage="xxx", multiply=self.multiply, bc=self.bc, subsample=self.subsample)  
