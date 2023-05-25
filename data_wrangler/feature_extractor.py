@@ -5,14 +5,18 @@ from data_wrangler import batcher
     
 
 class feature_wrapper(tf.keras.layers.Layer):
-    def __init__(self, multiply=1):
+    def __init__(self, multiply=1, bc=False):
         super().__init__()
-        self.multiply = multiply
+        self.bc = bc
+        if self.bc:
+            self.multiply = 1
+        else:
+            self.multiply = multiply
 
     def call(self,  inputs):
     
         x_emb,  y,  y_diff,  x_diff,  d,  x_n,  y_n,  n_C,  n_T = inputs # (batch_s, multiply * (n_C + n_T), enc_dim + multiply) (batch_s, multiply * (n_C + n_T), 1) (batch_s, multiply * (n_C + n_T), 1) (batch_s, multiply * (n_C + n_T), 1) (batch_s, multiply * (n_C + n_T), 2) (batch_s, multiply * (n_C + n_T), 1) (batch_s, multiply * (n_C + n_T), 1)
-    
+
         ##### inputs for the MHA-X head ######
         value_x =  tf.identity(y) #check if identity is needed
         ### check what is happening with embedding
@@ -155,79 +159,79 @@ class DE(tf.keras.layers.Layer):
 
 
         #context section
+        if (context_n > 0):
 
-        current_x = tf.expand_dims(x_values[:,  :context_n], axis=2) # (32, 20, 1, 1)
-        current_y = tf.expand_dims(y_values[:,  :context_n], axis=2) # (32, 20, 1, 1)
+            current_x = tf.expand_dims(x_values[:,  :context_n], axis=2) # (32, 20, 1, 1)
+            current_y = tf.expand_dims(y_values[:,  :context_n], axis=2) # (32, 20, 1, 1)
 
 
-        x_temp = x_values[:, :context_n]
-        x_temp = tf.repeat(tf.expand_dims(x_temp,  axis=1),  axis=1,  repeats=context_n) #x_temp.shape (32, 20, 20, 1)
+            x_temp = x_values[:, :context_n]
+            x_temp = tf.repeat(tf.expand_dims(x_temp,  axis=1),  axis=1,  repeats=context_n) #x_temp.shape (32, 20, 20, 1)
 
-        y_temp = y_values[:, :context_n]
-        y_temp = tf.repeat(tf.expand_dims(y_temp,  axis=1),  axis=1,  repeats=context_n)
+            y_temp = y_values[:, :context_n]
+            y_temp = tf.repeat(tf.expand_dims(y_temp,  axis=1),  axis=1,  repeats=context_n)
+            
+
+            ix = tf.argsort(tf.math.reduce_euclidean_norm((current_x - x_temp), axis=-1), axis=-1)[:, :, 1]
         
-
-        ix = tf.argsort(tf.math.reduce_euclidean_norm((current_x - x_temp), axis=-1), axis=-1)[:, :, 1]   
-
-        selection_indices = tf.concat([tf.reshape(tf.repeat(tf.range(batch_size*context_n), 1), (-1, 1)), 
-                                       tf.reshape(ix, (-1, 1))], axis=1)
+            selection_indices = tf.concat([tf.reshape(tf.repeat(tf.range(batch_size*context_n), 1), (-1, 1)), 
+                                        tf.reshape(ix, (-1, 1))], axis=1)
 
 
-        x_closest = tf.reshape(tf.gather_nd(tf.reshape(x_temp, (-1, context_n, dim_x)), selection_indices), 
-                               (batch_size, context_n, dim_x)) 
-        
-        
-        y_closest = tf.reshape(tf.gather_nd(tf.reshape(y_temp, (-1, context_n, dim_y)), selection_indices), 
-                       (batch_size, context_n, dim_y))
-        
-        x_rep = current_x[:, :, 0] - x_closest
-        y_rep = current_y[:, :, 0] - y_closest            
+            x_closest = tf.reshape(tf.gather_nd(tf.reshape(x_temp, (-1, context_n, dim_x)), selection_indices), 
+                                (batch_size, context_n, dim_x)) 
+            
+            
+            y_closest = tf.reshape(tf.gather_nd(tf.reshape(y_temp, (-1, context_n, dim_y)), selection_indices), 
+                        (batch_size, context_n, dim_y))
+            
+            x_rep = current_x[:, :, 0] - x_closest
+            y_rep = current_y[:, :, 0] - y_closest            
 
-        deriv = y_rep / (epsilon + tf.math.reduce_euclidean_norm(x_rep, axis=-1, keepdims=True))
+            deriv = y_rep / (epsilon + tf.math.reduce_euclidean_norm(x_rep, axis=-1, keepdims=True))
 
-        dydx_dummy = deriv
-        diff_y_dummy = y_rep
-        diff_x_dummy =x_rep
-        closest_y_dummy = y_closest
-        closest_x_dummy = x_closest
-
+            dydx_dummy = deriv
+            diff_y_dummy = y_rep
+            diff_x_dummy =x_rep
+            closest_y_dummy = y_closest
+            closest_x_dummy = x_closest
         #target selection
+        if (target_m > 0):
+            current_x = tf.expand_dims(x_values[:, context_n:context_n+target_m], axis=2)
+            current_y = tf.expand_dims(y_values[:, context_n:context_n+target_m], axis=2)
 
-        current_x = tf.expand_dims(x_values[:, context_n:context_n+target_m], axis=2)
-        current_y = tf.expand_dims(y_values[:, context_n:context_n+target_m], axis=2)
-
-        x_temp = tf.repeat(tf.expand_dims(x_values[:, :target_m+context_n], axis=1), axis=1, repeats=target_m)
-        y_temp = tf.repeat(tf.expand_dims(y_values[:, :target_m+context_n], axis=1), axis=1, repeats=target_m)
+            x_temp = tf.repeat(tf.expand_dims(x_values[:, :target_m+context_n], axis=1), axis=1, repeats=target_m)
+            y_temp = tf.repeat(tf.expand_dims(y_values[:, :target_m+context_n], axis=1), axis=1, repeats=target_m)
 
 
-        x_mask = tf.linalg.band_part(tf.ones((target_m, context_n + target_m), tf.bool), -1, context_n)
-        x_mask_inv = (x_mask == False)
-        x_mask_float = tf.cast(x_mask_inv, "float32")*1000
-        x_mask_float_repeat = tf.repeat(tf.expand_dims(x_mask_float, axis=0), axis=0, repeats=batch_size)
+            x_mask = tf.linalg.band_part(tf.ones((target_m, context_n + target_m), tf.bool), -1, context_n)
+            x_mask_inv = (x_mask == False)
+            x_mask_float = tf.cast(x_mask_inv, "float32")*1000
+            x_mask_float_repeat = tf.repeat(tf.expand_dims(x_mask_float, axis=0), axis=0, repeats=batch_size)
 
-        ix = tf.argsort(tf.cast(tf.math.reduce_euclidean_norm((current_x - x_temp), 
-                                            axis=-1), dtype="float32") + x_mask_float_repeat, axis=-1)[:, :, 1]
+            ix = tf.argsort(tf.cast(tf.math.reduce_euclidean_norm((current_x - x_temp), 
+                                                axis=-1), dtype="float32") + x_mask_float_repeat, axis=-1)[:, :, 1]
 
-        selection_indices = tf.concat([tf.reshape(tf.repeat(tf.range(batch_size*target_m), 1), (-1, 1)), 
-                                   tf.reshape(ix, (-1, 1))], axis=1)
+            selection_indices = tf.concat([tf.reshape(tf.repeat(tf.range(batch_size*target_m), 1), (-1, 1)), 
+                                    tf.reshape(ix, (-1, 1))], axis=1)
 
-        x_closest = tf.reshape(tf.gather_nd(tf.reshape(x_temp, (-1, target_m+context_n, dim_x)), selection_indices), 
-                               (batch_size, target_m, dim_x)) 
-        
-        y_closest = tf.reshape(tf.gather_nd(tf.reshape(y_temp, (-1, target_m+context_n, dim_y)), selection_indices), 
-                       (batch_size, target_m, dim_y))
-        
-        
-        x_rep = current_x[:, :, 0] - x_closest
-        y_rep = current_y[:, :, 0] - y_closest            
+            x_closest = tf.reshape(tf.gather_nd(tf.reshape(x_temp, (-1, target_m+context_n, dim_x)), selection_indices), 
+                                (batch_size, target_m, dim_x)) 
+            
+            y_closest = tf.reshape(tf.gather_nd(tf.reshape(y_temp, (-1, target_m+context_n, dim_y)), selection_indices), 
+                        (batch_size, target_m, dim_y))
+            
+            
+            x_rep = current_x[:, :, 0] - x_closest
+            y_rep = current_y[:, :, 0] - y_closest            
 
-        deriv = y_rep / (epsilon + tf.math.reduce_euclidean_norm(x_rep, axis=-1, keepdims=True))
+            deriv = y_rep / (epsilon + tf.math.reduce_euclidean_norm(x_rep, axis=-1, keepdims=True))
 
-        dydx_dummy = tf.concat([dydx_dummy, deriv], axis=1)
-        diff_y_dummy = tf.concat([diff_y_dummy, y_rep], axis=1)
-        diff_x_dummy = tf.concat([diff_x_dummy, x_rep], axis=1)
-        closest_y_dummy = tf.concat([closest_y_dummy, y_closest], axis=1)
-        closest_x_dummy = tf.concat([closest_x_dummy, x_closest], axis=1)
+            dydx_dummy = tf.concat([dydx_dummy, deriv], axis=1)
+            diff_y_dummy = tf.concat([diff_y_dummy, y_rep], axis=1)
+            diff_x_dummy = tf.concat([diff_x_dummy, x_rep], axis=1)
+            closest_y_dummy = tf.concat([closest_y_dummy, y_closest], axis=1)
+            closest_x_dummy = tf.concat([closest_x_dummy, x_closest], axis=1)
 
         return diff_y_dummy, diff_x_dummy, dydx_dummy, closest_x_dummy, closest_y_dummy
 
