@@ -90,7 +90,7 @@ def batcher_bc(array, seq_l, batch_size=32):
 
         t.append(t_all)
         y.append(y_temp_all)
-    return np.array(y), np.array(t)
+    return np.array(t), np.array(y)
 
 if __name__ == 'main':
     ## test batcher_multi_ts example with exchange rate data
