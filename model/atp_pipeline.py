@@ -13,7 +13,7 @@ from model.atp_no_leakage_xxx import ATP as ATP_no_leakage_xxx
 class atp_pipeline(keras.models.Model):
     
     def __init__(self, num_heads=4, projection_shape_for_head=4, output_shape=64, rate=0.1, permutation_repeats=1,
-                 bound_std=False, num_layers=3, enc_dim=32, xmin=0.1, xmax=2, multiply=1, MHAX_leakage=True, subsample =True, bc = False):
+                 bound_std=False, num_layers=3, enc_dim=32, xmin=0.1, xmax=2, multiply=1, MHAX_leakage=True, subsample =True, bc = False, y_target_dim=1):
         super().__init__()
         # for testing set permutation_repeats=0
         self._MHAX_leakage = MHAX_leakage
@@ -21,30 +21,30 @@ class atp_pipeline(keras.models.Model):
         self.enc_dim = enc_dim
         self.xmin = xmin
         self.xmax = xmax
+        self.y_target_dim = y_target_dim
         self.multiply = multiply
         self._subsample = subsample
         self._bc = bc   
-        self._feature_wrapper = feature_wrapper(multiply=self.multiply, bc=self._bc)
+        self._feature_wrapper = feature_wrapper()
         if self._MHAX_leakage == True:
-            print("MHAX_leakage")
             self._atp = ATP(num_heads=num_heads,dropout_rate=rate,num_layers=num_layers,output_shape=output_shape,
-                        projection_shape=projection_shape_for_head*num_heads,bound_std=bound_std)
+                        projection_shape=projection_shape_for_head*num_heads,bound_std=bound_std, y_target_dim=self.y_target_dim)
         elif self._MHAX_leakage == False:
             self._atp = ATP_no_leakage(num_heads=num_heads,dropout_rate=rate,num_layers=num_layers,output_shape=output_shape,
-                        projection_shape=projection_shape_for_head*num_heads,bound_std=bound_std)
+                        projection_shape=projection_shape_for_head*num_heads,bound_std=bound_std, y_target_dim=self.y_target_dim)
         elif self._MHAX_leakage == "new_block":
             self._atp = ATP_new_block(num_heads=num_heads,dropout_rate=rate,num_layers=num_layers,output_shape=output_shape,
-                        projection_shape=projection_shape_for_head*num_heads,bound_std=bound_std)
+                        projection_shape=projection_shape_for_head*num_heads,bound_std=bound_std, y_target_dim=self.y_target_dim)
         elif self._MHAX_leakage == "xxx":
             self._atp = ATP_no_leakage_xxx(num_heads=num_heads,dropout_rate=rate,num_layers=num_layers,output_shape=output_shape,
-                        projection_shape=projection_shape_for_head*num_heads,bound_std=bound_std)
-        self._DE = DE()
+                        projection_shape=projection_shape_for_head*num_heads,bound_std=bound_std, y_target_dim=self.y_target_dim)
+        self._DE = DE(img_seg=True) 
     
     def concat_context_multi_ts(self, list_of_inputs, dim, n_C):
-        return tf.concat([list_of_inputs[i][dim][:, :n_C, :] for i in range(len(list_of_inputs))], axis=1)
+        return tf.concat([list_of_inputs[i][dim][:, :n_C[i], :] for i in range(len(list_of_inputs))], axis=1)
 
     def concat_target_multi_ts(self, list_of_inputs, dim, n_C, n_T, last_dim):
-        x = tf.concat([list_of_inputs[i][dim][:, n_C:n_C+n_T, :][:, :, tf.newaxis, :] for i in range(len(list_of_inputs))], axis=2)
+        x = tf.concat([list_of_inputs[i][dim][:, n_C[i]:n_C[i]+n_T[i], :][:, :, tf.newaxis, :] for i in range(len(list_of_inputs))], axis=2)
         x = tf.reshape(x, (x.shape[0], -1, last_dim))
         return x
 
@@ -52,19 +52,17 @@ class atp_pipeline(keras.models.Model):
         batch_size = x.shape[0]
         inputs_for_processing = []
         eye = tf.eye(self.multiply)
+        ts_start = 0
         for i in range(self.multiply):
-
+            
             # embed each ts separately and each dimension separately
             ts_label = tf.reshape(tf.repeat(eye[:, i][tf.newaxis, :], batch_size*(n_C[i] + n_T[i]), axis=0), (batch_size, -1, self.multiply)) # one hot encoding of the ts
-            ts_start = i*(n_C[i] + n_T[i])
-            ts_end = (i+1)*(n_C[i] + n_T[i])
+            ts_end = ts_start +(n_C[i] + n_T[i])
 
             if self._subsample == True:
                 x_temp, y_temp = self._feature_wrapper.subsample(x[:, ts_start:ts_end, :], y[:, ts_start:ts_end, :], n_C[i], n_T[i], n_C_s[i], n_T_s[i])
-                n_C = n_C_s
-                n_T = n_T_s
-                ts_label = tf.reshape(tf.repeat(eye[:, i][tf.newaxis, :], batch_size*(n_C + n_T), axis=0), (batch_size, -1, self.multiply)) # overwrites the previous ts_label
-
+                ts_label = tf.reshape(tf.repeat(eye[:, i][tf.newaxis, :], batch_size*(n_C_s[i] + n_T_s[i]), axis=0), (batch_size, -1, self.multiply)) # overwrites the previous ts_label
+                
             else:
                 x_temp = x[:, ts_start:ts_end, :]
                 y_temp = y[:, ts_start:ts_end, :]
@@ -72,19 +70,27 @@ class atp_pipeline(keras.models.Model):
             x_emb = [tf.concat([self._feature_wrapper.PE([x_temp[:, :, dim_num][:, :, tf.newaxis], self.enc_dim, self.xmin, self.xmax]), ts_label], axis=-1) for dim_num in range(x_temp.shape[-1])] 
             x_emb = tf.concat(x_emb, axis=-1) # (32, 30, 34)
             # take derivative of each ts separately
-            y_diff, x_diff, d, x_n, y_n = self._DE([y_temp, x_temp, tf.cast(n_C[i], tf.int32), tf.cast(n_T[i], tf.int32), True]) #  (32, 30, 1),  (32, 30, 1), (32, 30, 2), (32, 30, 1), (32, 30, 1)
-
+            if self._subsample:
+                y_diff, x_diff, d, x_n, y_n = self._DE([y_temp, x_temp, n_C_s[i], n_T_s[i], True]) #  (32, 30, 1),  (32, 30, 1), (32, 30, 2), (32, 30, 1), (32, 30, 1)
+            else:
+                y_diff, x_diff, d, x_n, y_n = self._DE([y_temp, x_temp, n_C[i], n_T[i], True]) #  (32, 30, 1),  (32, 30, 1), (32, 30, 2), (32, 30, 1), (32, 30, 1)
             inputs_for_processing.append([x_emb, y_temp, y_diff, x_diff, d, x_n, y_n])  
+            ts_start = ts_end
+        
 
         if self._bc:
-            # the end sequence will be (y_11,.., y_1n_C, y21, ..y_2n_C2, y1*, y1**, ...,y1****)
-            context_list = [self.concat_context_multi_ts(inputs_for_processing, j, n_C[0] + n_T[0]) for j in tf.range(7)]
+            # the end sequence will be (y_11,.., y_1n_C, y21, ..y_2n_C2, y1*, y1**, ...,y1****)    
+            if self._subsample:
+                temp_val = [n_C_s[i] + n_T_s[i] for i in range(self.multiply)]
+            else:
+                temp_val = [n_C[i] + n_T[i] for i in range(self.multiply)]
+            context_list = [self.concat_context_multi_ts(inputs_for_processing, j, temp_val) for j in range(7)]
             x_emb, y, y_diff, x_diff, d, x_n, y_n  = context_list
         else:
             # the end sequence will be (y_11,.., y_1n_C, y21, ..y_2n_C, y1*, y2*, ..yk*, y1**, y2**, ..yk**)
-            context_list = [self.concat_context_multi_ts(inputs_for_processing, j, n_C[0]) for j in tf.range(7)]
-            target_list = [self.concat_target_multi_ts(inputs_for_processing, j, n_C[0], n_T[0], context_list[j].shape[-1]) for j in tf.range(7)]
-            x_emb, y, y_diff, x_diff, d, x_n, y_n = [tf.concat([context_list[j], target_list[j]], axis=1) for j in tf.range(7)]
+            context_list = [self.concat_context_multi_ts(inputs_for_processing, j, n_C) for j in range(7)]
+            target_list = [self.concat_target_multi_ts(inputs_for_processing, j, n_C, n_T, context_list[j].shape[-1]) for j in range(7)]
+            x_emb, y, y_diff, x_diff, d, x_n, y_n = [tf.concat([context_list[j], target_list[j]], axis=1) for j in range(7)]
         inputs_for_processing = [x_emb, y, y_diff, x_diff, d, x_n, y_n]
         return inputs_for_processing, y, y_n, n_C, n_T
 
@@ -95,20 +101,23 @@ class atp_pipeline(keras.models.Model):
     def call(self, inputs):
 
         x, y, n_C, n_T, training, n_C_s, n_T_s = inputs #  (batch_size, n_C + n_T, 1), (batch_size, n_C + n_T, 1)
-        assert type(n_C) == list
-        assert type(n_T) == list
-        assert type(n_C_s) == list
-        assert type(n_T_s) == list
-        assert self.multiply == len(n_C)
+        # assert type(n_C) == list
+        # assert type(n_T) == list
+        # assert type(n_C_s) == list
+        # assert type(n_T_s) == list
+        # assert self.multiply == len(n_C)
+        # print(self.multiply, len(n_C), len(n_T), len(n_C_s), len(n_T_s))
         
         if not self._bc:
-            x = x[:,:(n_C[0]+n_T[0]) * self.multiply,:]
-            y = y[:,:(n_C[0]+n_T[0]) * self.multiply,:]
+            total_length = sum(n_C) + sum(n_T)
+            x = x[:,:total_length,:]
+            y = y[:,:total_length,:]
 
         if (self._subsample == True) and (self.multiply == 1):
             x, y = self._feature_wrapper.subsample(x, y, n_C[0], n_T[0], n_C_s[0], n_T_s[0])
             n_C = n_C_s
             n_T = n_T_s
+            # print("y shape after subsample:", y.shape)
 
         #x and y have shape batch size x length x dim
         # if training == True:    
@@ -126,35 +135,31 @@ class atp_pipeline(keras.models.Model):
             y_diff, x_diff, d, x_n, y_n = self._DE([y, x, n_C, n_T, training]) #  (32, 30, 1), (32, 30, 1), (32, 30, 2), (32, 30, 1), (32, 30, 1) [n_C = 20 and n_T = 10]
             inputs_for_processing = [x_emb, y, y_diff, x_diff, d, x_n, y_n]
 
-        else: 
-
+        else:  
             # # the end sequence will be (y_11,.., y_1n_C, y21, ..y_2n_C, y1*, y2*, ..yk*, y1**, y2**, ..yk**)
-            inputs_for_processing, y, y_n, n_C, n_T = self.inputs_for_multi_ts(x, y, n_C, n_T, n_C_s, n_T_s)
-
+            inputs_for_processing, y, y_n, _, _ = self.inputs_for_multi_ts(x, y, n_C, n_T, n_C_s, n_T_s)
+            if (self._subsample):
+                n_C = n_C_s
+                n_T = n_T_s
 
         if self._bc: # currently w/o subsample
-            n_C_n = 0
-            for ts in range(self.multiply - 1): 
-                n_C_n = n_C_n +  n_C[ts] + n_T[ts]
-            n_C = n_C_n + n_C[-1]
+            n_C = tf.math.reduce_sum(n_C) + tf.math.reduce_sum(n_T[:-1])
             n_T = n_T[-1]
         else:
-            n_C = n_C[0]
-            n_T = n_T[0]
+            n_C = tf.math.reduce_sum(n_C)
+            n_T = tf.math.reduce_sum(n_T)
         inputs_for_processing.append(n_C)
         inputs_for_processing.append(n_T)
         query_x, key_x, value_x, query_xy, key_xy, value_xy = self._feature_wrapper(inputs_for_processing) #  (batch_size, multiply *(n_C_s + n_T_s), enc_dim + multiply + x_diff.dim + x_n.dim), (batch_size, multiply *(n_C_s + n_T_s), enc_dim + multiply + x_diff.dim + x_n.dim) , (batch_size, multiply *(n_C_s + n_T_s), 1), (batch_size, multiply *(n_C_s + n_T_s), enc.dim + multiply + 2 + label.dim + y.dim + y_diff.dim + d.dim + y_n.dim)
-        if self._bc: 
-            self.multiply = 1
             
-        value_x = tf.reshape(value_x, (value_x.shape[0], (n_C + n_T) * self.multiply, value_x.shape[-1]))
+        value_x = tf.reshape(value_x, (value_x.shape[0], (n_C + n_T), value_x.shape[-1]))
         y_n_closest = y_n[:, :, :y.shape[-1]] #### need to update this based on how we pick closest point
         ######## make mask #######
         mask = self._feature_wrapper.masker(n_C, n_T)
 
         μ, log_σ = self._atp([query_x, key_x, value_x, query_xy, key_xy, value_xy, mask, y_n_closest], training=training)
 
-        return μ[:, n_C*self.multiply:], log_σ[:, n_C*self.multiply:], y[:, n_C*self.multiply:]
+        return μ[:, n_C:], log_σ[:, n_C:], y[:, n_C:]
       
 
 def instantiate_atp(dataset,training=True):

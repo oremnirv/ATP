@@ -6,19 +6,18 @@ from model import losses
 def build_graph():
     
     @tf.function(experimental_relax_shapes=True)
-    def train_step(atp_model, optimizer, x, y, n_C, n_T, multiple = 1, training=True, n_C_s = None, n_T_s = None, subsample = False, bc = False):
-
+    def train_step(atp_model, optimizer, x, y, n_C, n_T, multiple = 1, training=True, n_C_s = None, n_T_s = None, subsample = False, bc = False, img_seg = False):
         with tf.GradientTape(persistent=True) as tape:
 
             μ, log_σ, y1 = atp_model([x, y, n_C, n_T, training, n_C_s, n_T_s])  
-            if subsample:
-                y1 = y[:, n_C_s * multiple:(n_T_s+n_C_s) * multiple]
-            
-            _, _, _, likpp, mse = losses.nll(y1, μ, log_σ)
-        
+            if img_seg:
+                likpp, mse = losses.categorical_ce(y1, μ)
+            else:
+                _, _, _, likpp, mse = losses.nll(y1, μ, log_σ)
+
         gradients = tape.gradient(likpp, atp_model.trainable_variables)
         optimizer.apply_gradients(zip(gradients, atp_model.trainable_variables))
         return μ, log_σ, likpp, mse
 
-    tf.keras.backend.set_floatx('float32')
+    # tf.keras.backend.set_floatx('float32')
     return train_step

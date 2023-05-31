@@ -131,11 +131,12 @@ class ATP(tf.keras.Model):
                   projection_shape,
                   output_shape,
                   num_layers,
-                  dropout_rate=0.1, target_y_dim=1,
-                  bound_std = False
+                  dropout_rate=0.1, y_target_dim=1,
+                  bound_std = False, sigma_trainable = True
                   ):
         super(ATP, self).__init__()
 
+        self.sigma_trainable = sigma_trainable
         self.num_layers = num_layers
         
         self.mha_x_a = MHA_X_a(num_heads,
@@ -157,8 +158,8 @@ class ATP(tf.keras.Model):
                   output_shape,
                   dropout_rate=dropout_rate) for _ in range(num_layers-1)]
 
-        self.dense_sigma = tf.keras.layers.Dense(target_y_dim)
-        self.dense_last = tf.keras.layers.Dense(target_y_dim)
+        self.dense_sigma = tf.keras.layers.Dense(y_target_dim)
+        self.dense_last = tf.keras.layers.Dense(y_target_dim)
         self.bound_std = bound_std
 
     def call(self, input, training=True):
@@ -177,7 +178,7 @@ class ATP(tf.keras.Model):
             xy  = self.mha_xy_b[i](xy, xy, xy, mask, xy_temp,training=training)
             x  = self.mha_x_b[i](x, x, value_x, mask,training=training)
 
-            if ((i < (self.num_layers - 2)) | (self.num_layers <= 2)):
+            if ((i < (self.num_layers - 2)) | (self.num_layers <= 2)) and self.sigma_trainable:
                 log_σ = self.dense_sigma(xy)
 
 
@@ -185,12 +186,12 @@ class ATP(tf.keras.Model):
 
         μ = self.dense_last(z) + y_n
 
-        σ = tf.exp(log_σ)
-        if self.bound_std:
+        if self.sigma_trainable:
+            σ = tf.exp(log_σ)
+            if self.bound_std:
 
-            σ = 0.01 + 0.99 * tf.math.softplus(log_σ)
+                σ = 0.01 + 0.99 * tf.math.softplus(log_σ)
 
-        log_σ = tf.math.log(σ)
-        # print(μ[:, 100]) 
-        # print(μ[:, 100].shape)
-        return μ, log_σ
+            log_σ = tf.math.log(σ)
+            return μ, log_σ
+        return μ, None

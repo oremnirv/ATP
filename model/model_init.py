@@ -5,12 +5,13 @@ from model import atp_pipeline
 from data_wrangler import dataset_preparer, batcher
 
 class model_init():
-        def __init__(self, model_name, run, task='forecasting/ETT/', multiply=1, bc=False, subsample = False):
+        def __init__(self, model_name, run, task='forecasting/ETT/', multiply=1, bc=False, subsample = False, y_target_dim=1):
             super().__init__()
             self.model_name = model_name
             self.opt = tf.keras.optimizers.Adam(3e-4)
             self.run = run
             self.bc = bc
+            self.y_target_dim = y_target_dim
             self.subsample = subsample
             self.multiply = multiply
             self.save_dir = "weights/{}/{}/".format(task, model_name)
@@ -18,13 +19,13 @@ class model_init():
             assert model_name in ['leak', 'atp', 'new_block']
             if model_name == 'leak':
                 self.model = atp_pipeline.atp_pipeline(num_heads=6, projection_shape_for_head=11, output_shape=32, rate=0.05, permutation_repeats=0,
-                    bound_std=False, num_layers=4, enc_dim=32, xmin=0.1, xmax=1, MHAX_leakage=True, multiply=self.multiply, bc=self.bc, subsample=self.subsample) 
+                    bound_std=False, num_layers=4, enc_dim=32, xmin=0.1, xmax=1, MHAX_leakage=True, multiply=self.multiply, bc=self.bc, subsample=self.subsample, y_target_dim=self.y_target_dim) 
             elif model_name == 'atp':
                 self.model = atp_pipeline.atp_pipeline(num_heads=6, projection_shape_for_head=11, output_shape=32, rate=0.05, permutation_repeats=0,
-                    bound_std=False, num_layers=4, enc_dim=32, xmin=0.1, xmax=1, MHAX_leakage="xxx", multiply=self.multiply, bc=self.bc, subsample=self.subsample)  
+                    bound_std=False, num_layers=4, enc_dim=32, xmin=0.1, xmax=1, MHAX_leakage="xxx", multiply=self.multiply, bc=self.bc, subsample=self.subsample, y_target_dim=self.y_target_dim)  
             elif model_name == 'new_block':
                 self.model = atp_pipeline.atp_pipeline(num_heads=10, projection_shape_for_head=9, output_shape=32, rate=0.0, permutation_repeats=0,
-                    bound_std=False, num_layers=6, enc_dim=32, xmin=0.1, xmax=2, MHAX_leakage="new_block", multiply=self.multiply, bc=self.bc, subsample=self.subsample)
+                    bound_std=False, num_layers=6, enc_dim=32, xmin=0.1, xmax=2, MHAX_leakage="new_block", multiply=self.multiply, bc=self.bc, subsample=self.subsample, y_target_dim=self.y_target_dim)
             else:
                 raise ValueError('model_name not found')
 
