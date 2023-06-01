@@ -67,6 +67,7 @@ class atp_pipeline(keras.models.Model):
                 x_temp = x[:, ts_start:ts_end, :]
                 y_temp = y[:, ts_start:ts_end, :]
 
+            # print("x_temp.shape", x_temp.shape)
             x_emb = [tf.concat([self._feature_wrapper.PE([x_temp[:, :, dim_num][:, :, tf.newaxis], self.enc_dim, self.xmin, self.xmax]), ts_label], axis=-1) for dim_num in range(x_temp.shape[-1])] 
             x_emb = tf.concat(x_emb, axis=-1) # (32, 30, 34)
             # take derivative of each ts separately
@@ -100,14 +101,8 @@ class atp_pipeline(keras.models.Model):
 
     def call(self, inputs):
 
-        x, y, n_C, n_T, training, n_C_s, n_T_s = inputs #  (batch_size, n_C + n_T, 1), (batch_size, n_C + n_T, 1)
-        # assert type(n_C) == list
-        # assert type(n_T) == list
-        # assert type(n_C_s) == list
-        # assert type(n_T_s) == list
-        # assert self.multiply == len(n_C)
-        # print(self.multiply, len(n_C), len(n_T), len(n_C_s), len(n_T_s))
-        
+        x, y, n_C, n_T, training, n_C_s, n_T_s, n_C_tot, n_T_tot = inputs #  (batch_size, n_C + n_T, 1), (batch_size, n_C + n_T, 1)
+
         if not self._bc:
             total_length = sum(n_C) + sum(n_T)
             x = x[:,:total_length,:]
@@ -143,11 +138,11 @@ class atp_pipeline(keras.models.Model):
                 n_T = n_T_s
 
         if self._bc: # currently w/o subsample
-            n_C = tf.math.reduce_sum(n_C) + tf.math.reduce_sum(n_T[:-1])
-            n_T = n_T[-1]
+            n_C = n_C_tot
+            n_T = n_T_tot
         else:
-            n_C = tf.math.reduce_sum(n_C)
-            n_T = tf.math.reduce_sum(n_T)
+            n_C = n_C_tot
+            n_T = n_T_tot
         inputs_for_processing.append(n_C)
         inputs_for_processing.append(n_T)
         query_x, key_x, value_x, query_xy, key_xy, value_xy = self._feature_wrapper(inputs_for_processing) #  (batch_size, multiply *(n_C_s + n_T_s), enc_dim + multiply + x_diff.dim + x_n.dim), (batch_size, multiply *(n_C_s + n_T_s), enc_dim + multiply + x_diff.dim + x_n.dim) , (batch_size, multiply *(n_C_s + n_T_s), 1), (batch_size, multiply *(n_C_s + n_T_s), enc.dim + multiply + 2 + label.dim + y.dim + y_diff.dim + d.dim + y_n.dim)

@@ -5,11 +5,11 @@ from model import losses
 
 def build_graph():
     
-    @tf.function(experimental_relax_shapes=True)
-    def train_step(atp_model, optimizer, x, y, n_C, n_T, multiple = 1, training=True, n_C_s = None, n_T_s = None, subsample = False, bc = False, img_seg = False):
+    @tf.function()
+    def train_step(atp_model, optimizer, x, y, n_C, n_T, multiple = 1, training=True, n_C_s = None, n_T_s = None, n_C_tot = None, n_T_tot=None, subsample = False, bc = False, img_seg = False):
         with tf.GradientTape(persistent=True) as tape:
 
-            μ, log_σ, y1 = atp_model([x, y, n_C, n_T, training, n_C_s, n_T_s])  
+            μ, log_σ, y1 = atp_model([x, y, n_C, n_T, training, n_C_s, n_T_s, n_C_tot, n_T_tot])  
             if img_seg:
                 likpp, mse = losses.categorical_ce(y1, μ)
             else:
