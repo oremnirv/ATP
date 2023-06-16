@@ -13,12 +13,13 @@ from model.atp_no_leakage_xxx import ATP as ATP_no_leakage_xxx
 class atp_pipeline(keras.models.Model):
     
     def __init__(self, num_heads=4, projection_shape_for_head=4, output_shape=64, rate=0.1, permutation_repeats=1,
-                 bound_std=False, num_layers=3, enc_dim=32, xmin=0.1, xmax=2, multiply=1, MHAX_leakage=True, subsample =True, bc = False, y_target_dim=1):
+                 bound_std=False, num_layers=3, enc_dim=32, xmin=0.1, xmax=2, multiply=1, MHAX_leakage=True, subsample =True, bc = False, y_target_dim=1, img_seg=False):
         super().__init__()
         # for testing set permutation_repeats=0
         self._MHAX_leakage = MHAX_leakage
         self._permutation_repeats = permutation_repeats
         self.enc_dim = enc_dim
+        self.img_seg = img_seg
         self.xmin = xmin
         self.xmax = xmax
         self.y_target_dim = y_target_dim
@@ -38,7 +39,7 @@ class atp_pipeline(keras.models.Model):
         elif self._MHAX_leakage == "xxx":
             self._atp = ATP_no_leakage_xxx(num_heads=num_heads,dropout_rate=rate,num_layers=num_layers,output_shape=output_shape,
                         projection_shape=projection_shape_for_head*num_heads,bound_std=bound_std, y_target_dim=self.y_target_dim)
-        self._DE = DE(img_seg=True) 
+        self._DE = DE(img_seg=self.img_seg) 
     
     def concat_context_multi_ts(self, list_of_inputs, dim, n_C):
         return tf.concat([list_of_inputs[i][dim][:, :n_C[i], :] for i in range(len(list_of_inputs))], axis=1)
@@ -49,6 +50,8 @@ class atp_pipeline(keras.models.Model):
         return x
 
     def inputs_for_multi_ts(self, x, y, n_C, n_T, n_C_s, n_T_s):
+        idx_c_all = []
+        idx_t_all = []
         batch_size = x.shape[0]
         inputs_for_processing = []
         eye = tf.eye(self.multiply)
@@ -58,11 +61,16 @@ class atp_pipeline(keras.models.Model):
             # embed each ts separately and each dimension separately
             ts_label = tf.reshape(tf.repeat(eye[:, i][tf.newaxis, :], batch_size*(n_C[i] + n_T[i]), axis=0), (batch_size, -1, self.multiply)) # one hot encoding of the ts
             ts_end = ts_start +(n_C[i] + n_T[i])
+            # print("ts_start", ts_start)
+            # print("ts_end", ts_end)
 
             if self._subsample == True:
-                x_temp, y_temp = self._feature_wrapper.subsample(x[:, ts_start:ts_end, :], y[:, ts_start:ts_end, :], n_C[i], n_T[i], n_C_s[i], n_T_s[i])
+                # print("subsample")
+                x_temp, y_temp, idx_c, idx_t = self._feature_wrapper.subsample(x[:, ts_start:ts_end, :], y[:, ts_start:ts_end, :], n_C[i], n_T[i], n_C_s[i], n_T_s[i])
                 ts_label = tf.reshape(tf.repeat(eye[:, i][tf.newaxis, :], batch_size*(n_C_s[i] + n_T_s[i]), axis=0), (batch_size, -1, self.multiply)) # overwrites the previous ts_label
-                
+                idx_c_all.append(idx_c)
+                idx_t_all.append(idx_t)
+                # print("finished subsample")
             else:
                 x_temp = x[:, ts_start:ts_end, :]
                 y_temp = y[:, ts_start:ts_end, :]
@@ -93,7 +101,7 @@ class atp_pipeline(keras.models.Model):
             target_list = [self.concat_target_multi_ts(inputs_for_processing, j, n_C, n_T, context_list[j].shape[-1]) for j in range(7)]
             x_emb, y, y_diff, x_diff, d, x_n, y_n = [tf.concat([context_list[j], target_list[j]], axis=1) for j in range(7)]
         inputs_for_processing = [x_emb, y, y_diff, x_diff, d, x_n, y_n]
-        return inputs_for_processing, y, y_n, n_C, n_T
+        return inputs_for_processing, y, y_n, n_C, n_T, idx_c_all, idx_t_all
 
 
 
@@ -132,10 +140,11 @@ class atp_pipeline(keras.models.Model):
 
         else:  
             # # the end sequence will be (y_11,.., y_1n_C, y21, ..y_2n_C, y1*, y2*, ..yk*, y1**, y2**, ..yk**)
-            inputs_for_processing, y, y_n, _, _ = self.inputs_for_multi_ts(x, y, n_C, n_T, n_C_s, n_T_s)
+            inputs_for_processing, y, y_n, _, _, idx_c, idx_t = self.inputs_for_multi_ts(x, y, n_C, n_T, n_C_s, n_T_s)
             if (self._subsample):
                 n_C = n_C_s
                 n_T = n_T_s
+                # print("n_C, n_T after subsample:", n_C, n_T)
 
         if self._bc: # currently w/o subsample
             n_C = n_C_tot
@@ -154,7 +163,7 @@ class atp_pipeline(keras.models.Model):
 
         μ, log_σ = self._atp([query_x, key_x, value_x, query_xy, key_xy, value_xy, mask, y_n_closest], training=training)
 
-        return μ[:, n_C:], log_σ[:, n_C:], y[:, n_C:]
+        return μ[:, n_C:], log_σ[:, n_C:], y[:, n_C:], idx_c, idx_t
       
 
 def instantiate_atp(dataset,training=True):

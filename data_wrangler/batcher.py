@@ -66,7 +66,7 @@ def batcher_multi_ts(array, n_C, n_T, batch_size=32):
         y.append(y_temp_all)
     return np.array(t), np.array(y)
 
-def batcher_bc(array, seq_l, batch_size=32):
+def batcher_bc(array, seq_l, batch_size=32, abs_t = False):
     """
     This is useful when we have multuple ts and the one we want to predict is sparser (shorter) than the others.
     ** Seq to predict is the column 1  in the array. **
@@ -79,10 +79,12 @@ def batcher_bc(array, seq_l, batch_size=32):
     """
     number_of_ts = array.shape[1] - 1 ## -1 because the first column is time
     t = []; y = []
+    if not abs_t:
+        array[:,0] = np.linspace(-1,1,array.shape[0])
     for i in range(batch_size):
         index = int(np.random.randint(0, array.shape[0] - seq_l, 1))
         t_all =  array[index:index + seq_l , 0]
-        t_all = np.repeat(t_all, number_of_ts)[:, np.newaxis]
+        t_all = np.tile(t_all, number_of_ts)[:, np.newaxis]
         y_temp_all =  array[index:index +seq_l , 1]
 
         for i in range(2, number_of_ts + 1):

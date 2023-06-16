@@ -2,6 +2,7 @@ import numpy as np
 import tensorflow as tf
 from data_wrangler import feature_extractor, dataset_preparer
 from data_wrangler import batcher
+import math as m
     
 
 class feature_wrapper(tf.keras.layers.Layer):
@@ -68,6 +69,8 @@ class feature_wrapper(tf.keras.layers.Layer):
             return x_permuted,  y_permuted
         
     def sorted_rand_idx(self,  n, num_idxs):
+        # print("n: ", n)
+        # print("num_idxs: ", num_idxs)
         return  tf.sort((tf.reshape(tf.argsort(tf.random.normal([n])), [-1]))[:num_idxs])
         
     def gather_idx_from_tensors(self,  tensor_list,  indices_list):
@@ -95,7 +98,7 @@ class feature_wrapper(tf.keras.layers.Layer):
         tensors_y = self.gather_idx_from_tensors([y[:, :n_C, :], y[:, n_C:n_C+n_T, :]], [indices_c, indices_t])
         y = tf.concat(tensors_y, axis=1)
         # print("y: ", y.shape)
-        return x, y
+        return x, y, indices_c, indices_t
         
         
     def PE(self,  inputs):  # return.shape=(T, B, d)
@@ -105,10 +108,14 @@ class feature_wrapper(tf.keras.layers.Layer):
         floating point positions,  rather than integer.
         """
         x,  enc_dim,  xΔmin,  xmax = inputs
+        π  = tf.constant(m.pi)
+        R = tf.cast(xmax / (2 * π), "float32")
+        # drange_even = tf.cast(xΔmin * R**(tf.range(0, enc_dim, 2) / enc_dim), "float32")
+        # drange_odd = tf.cast(xΔmin * R**((tf.range(1, enc_dim, 2) - 1) / enc_dim), "float32")
 
-        R = xmax / xΔmin * 100
-        drange_even = tf.cast(xΔmin * R**(tf.range(0, enc_dim, 2) / enc_dim), "float32")
-        drange_odd = tf.cast(xΔmin * R**((tf.range(1, enc_dim, 2) - 1) / enc_dim), "float32")
+        drange_even = tf.cast(tf.cast(1, "float32")/R**(tf.range(0, enc_dim, 2, dtype=tf.float32) / enc_dim), "float32")
+        drange_odd = tf.cast(tf.cast(1, "float32")/R**((tf.range(1, enc_dim, 2, dtype=tf.float32) - 1) / enc_dim), "float32")
+        
         x = tf.concat([tf.math.sin(x / drange_even),  tf.math.cos(x / drange_odd)],  axis=2)
         return x            
 
@@ -122,7 +129,7 @@ class DE(tf.keras.layers.Layer):
         y,  x,  n_C,  n_T,  training = inputs
 
         if (x.shape[-1] == 1):
-            # print("1d")
+            print("1d")
             y_diff,  x_diff,  d,  x_n,  y_n = self.derivative_function([y,  x,  n_C,  n_T])
         else: 
             # print("2d")
@@ -193,7 +200,12 @@ class DE(tf.keras.layers.Layer):
         x_rep = current_x[:, :, 0] - x_closest
         y_rep = current_y[:, :, 0] - y_closest            
 
-        deriv = y_rep / (epsilon + tf.math.reduce_euclidean_norm(x_rep, axis=-1, keepdims=True))
+        if not self.img_seg: # or not bc for heatwave
+
+            deriv = y_rep / (epsilon + tf.math.reduce_euclidean_norm(x_rep, axis=-1, keepdims=True))
+
+        else:
+            deriv = tf.zeros_like(y_rep)
 
         dydx_dummy = deriv
         diff_y_dummy = y_rep
@@ -231,7 +243,12 @@ class DE(tf.keras.layers.Layer):
             x_rep = current_x[:, :, 0] - x_closest
             y_rep = current_y[:, :, 0] - y_closest            
 
-            deriv = y_rep / (epsilon + tf.math.reduce_euclidean_norm(x_rep, axis=-1, keepdims=True))
+            if not self.img_seg: # or not bc for heatwave
+
+                deriv = y_rep / (epsilon + tf.math.reduce_euclidean_norm(x_rep, axis=-1, keepdims=True))
+
+            else:
+                deriv = tf.zeros_like(y_rep)
 
             dydx_dummy = tf.concat([dydx_dummy, deriv], axis=1)
             diff_y_dummy = tf.concat([diff_y_dummy, y_rep], axis=1)
@@ -260,6 +277,8 @@ class DE(tf.keras.layers.Layer):
             y_values, x_values, context_n, target_m = inputs
             batch_size, length = y_values.shape[0], context_n + target_m
 
+            context_n = tf.cast(context_n, tf.int64)
+            target_m = tf.cast(target_m, tf.int64)
             dim_x = x_values.shape[-1]
             dim_y = y_values.shape[-1]
 
@@ -350,7 +369,7 @@ class DE(tf.keras.layers.Layer):
                 y_temp = tf.repeat(tf.expand_dims(y_values[:, :target_m+context_n], axis=1), axis=1, repeats=target_m)
 
 
-                x_mask = tf.linalg.band_part(tf.ones((target_m, context_n + target_m), tf.bool), -1, context_n)
+                x_mask = tf.linalg.band_part(tf.ones((target_m, context_n + target_m), tf.bool), tf.cast(-1, tf.int64), tf.cast(context_n, tf.int64))
                 x_mask_inv = (x_mask == False)
                 x_mask_float = tf.cast(x_mask_inv, "float32")*1000
                 x_mask_float_repeat = tf.repeat(tf.expand_dims(x_mask_float, axis=0), axis=0, repeats=batch_size)
