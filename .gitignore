@@ -14,5 +14,6 @@ likelihood_vs_forecasting.ipynb
 abalation/*
 *.png
 *.gif
+*.ipynb
 
 
