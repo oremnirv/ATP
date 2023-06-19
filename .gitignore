@@ -12,4 +12,7 @@ autoformer_192.ipynb
 autoformer_192_ETTm2.ipynb
 likelihood_vs_forecasting.ipynb
 abalation/*
+*.png
+*.gif
+
 
