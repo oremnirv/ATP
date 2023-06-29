@@ -14,7 +14,8 @@ class tnp_pipeline(keras.models.Model):
         self._permutation_repeats = permutation_repeats
         self._feature_wrapper = feature_wrapper()
         self._tnp = TNP_Decoder(output_shape=output_shape,num_layers=num_layers,projection_shape=int(projection_shape_for_head*num_heads),
-                 num_heads=num_heads,dropout_rate=dropout_rate,target_y_dim=target_y_dim,bound_std=bound_std)
+                num_heads=num_heads,dropout_rate=dropout_rate,target_y_dim=target_y_dim,bound_std=bound_std)
+
 
     def call(self, inputs):
 
@@ -25,7 +26,7 @@ class tnp_pipeline(keras.models.Model):
         y = y[:,:n_C+n_T,:]
 
         if training == True:    
-            x,y = self._feature_wrapper.permute([x, y, n_C, n_T, self._permutation_repeats]) ##### clean permute, and check permute target and/or context?
+            x,y = self._feature_wrapper.permute([x, y, n_C, n_T, self._permutation_repeats]) 
 
         ######## make mask #######
 
@@ -48,17 +49,11 @@ class tnp_pipeline(keras.models.Model):
         return μ[:,-n_T:], log_σ[:, -n_T:]
 
 
+
             
 
 def instantiate_tnp(dataset,training=True):
             
-    # if dataset == "weather":
-
-    #     return tnp_pipeline(num_heads=3,projection_shape_for_head=4,output_shape=64, dropout_rate=0.0, 
-    #              permutation_repeats=0,bound_std=False, num_layers=6,target_y_dim=1)
-
-                 #does the permutation approach affect results for forecasting? i.e. permutations of 0 or 1 during training? 0 is better
-    
 
     if dataset == "exchange":
 

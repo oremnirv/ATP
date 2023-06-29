@@ -1,13 +1,12 @@
 #!/usr/bin/env python
 
-from model import atp_graph, losses
+from model import taylorformer_graph, losses
 from data_wrangler import synthetic_data_gen, feature_extractor
 import keras
 import numpy as np
 import tensorflow as tf
-from model import atp_pipeline
+from model import taylorformer_pipeline
 from comparison_models.tnp import tnp_pipeline
-from comparison_models.gru import gru_pipeline
 from data_wrangler import dataset_preparer
 import argparse
 from data_wrangler.batcher import batcher, batcher_np
@@ -28,11 +27,8 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    if args.dataset == "weather":
-        x_train, y_train, x_val, y_val, x_test, y_test = dataset_preparer.weather_processor(path_to_weather_data="datasets/weather.csv") 
-        save_dir = "weights/forecasting/weather"
 
-    elif args.dataset == "exchange":
+    if args.dataset == "exchange":
         x_train, y_train, x_val, y_val, x_test, y_test = dataset_preparer.dataset_processor(path_to_data="datasets/exchange.csv") 
         save_dir = "weights/forecasting/exchange"
         print('make sure to create the exchange folder in weights/forecasting/')
@@ -46,6 +42,11 @@ if __name__ == "__main__":
         x_train, y_train, x_val, y_val, x_test, y_test,n_context_test = dataset_preparer.gp_data_processor(path_to_data_folder="datasets/rbf/")
         save_dir = "weights/gp/rbf"
         print('make sure to create the gp folder in weights/gp')
+
+    elif args.dataset == "electricity":
+        x_train, y_train, x_val, y_val, x_test, y_test = dataset_preparer.electricity_processor(path_to_data="datasets/electricity_training.npy")
+        save_dir = "weights/forecasting/electricity"
+        print('make sure to create the electricity folder in weights/forecasting/')
 
     else: 
         raise ValueError("Dataset not found")
@@ -64,10 +65,11 @@ if __name__ == "__main__":
     batch_size = 32
     test_batch_s = 100
     valid_batch_size = 100
-    if n_T > 700 :
-        batch_size = 16
-        test_batch_s = 16
-        valid_batch_size = 16
+    if args.dataset != "rbf":
+        if n_T > 700 :
+            batch_size = 16
+            test_batch_s = 16
+            valid_batch_size = 16
 
     
 
@@ -80,17 +82,14 @@ if __name__ == "__main__":
         run= args.run + repeat
         tf.random.set_seed(run)
 
-        if args.model == "atp":
-            model = atp_pipeline.instantiate_atp(args.dataset)
+        if args.model == "taylorformer":
+            model = taylorformer_pipeline.instantiate_taylorformer(args.dataset)
         
         if args.model == "tnp":
             model = tnp_pipeline.instantiate_tnp(args.dataset)
 
-        if args.model == "gru":
-            model = gru_pipeline.instantiate_gru(args.dataset)
-            print('fails if doesnt have tf.device("/CPU:0") before training loop starts')
-
-        tr_step = atp_graph.build_graph()
+    
+        tr_step = taylorformer_graph.build_graph()
         
         ###### can we put the name of the model into the folder name #########?
 
@@ -107,27 +106,35 @@ if __name__ == "__main__":
         validation_losses = []
 
         for i in range(args.iterations):
-            idx_list = list(range(x_train.shape[0] - (n_C+n_T)))
-            x,y,_ = batcher(x_train,y_train,idx_list,window=n_C+n_T,batch_s=batch_size) ####### generalise for not just forecasting
-            x = np.repeat(np.linspace(-1,1,(n_C+n_T))[np.newaxis,:, np.newaxis], axis=0, repeats=batch_size) # it doesnt matter what the time is, just the relation between the times.
-            #### edit batcher to fix this
+
+            if args.dataset != "rbf":
+                idx_list = list(range(x_train.shape[0] - (n_C+n_T)))
+                x,y,_ = batcher(x_train,y_train,idx_list,window=n_C+n_T,batch_s=batch_size) ####### generalise for not just forecasting
+                x = np.repeat(np.linspace(-1,1,(n_C+n_T))[np.newaxis,:, np.newaxis], axis=0, repeats=batch_size) # it doesnt matter what the time is, just the relation between the times.
+                #### edit batcher to fix this
 
             #### batcher for NP data (which is already in sequences)
             if args.dataset == "rbf":
                 x,y = batcher_np(x_train,y_train,batch_s=batch_size)
                 #### nc nT need specification
+                n_C = tf.constant(int(np.random.choice(np.linspace(3,99,97))))
+                n_T = 100 - n_C
 
             _,_, _, _ = tr_step(model, opt, x,y,n_C,n_T, training=True)
 
             if i % 100 == 0:
-                idx_list = list(range(x_val.shape[0] - (n_C+n_T)))
-                ##### if val set is empty - increase val set size.  ########
-                t_te,y_te,_ = batcher(x_val,y_val,idx_list,batch_s = valid_batch_size,window=n_C+n_T)
-                t_te = np.repeat(np.linspace(-1,1,(n_C+n_T))[np.newaxis,:,np.newaxis],axis=0,repeats=valid_batch_size)
+
+                if args.dataset != "rbf":
+                    idx_list = list(range(x_val.shape[0] - (n_C+n_T)))
+                    ##### if val set is empty - increase val set size.  ########
+                    t_te,y_te,_ = batcher(x_val,y_val,idx_list,batch_s = valid_batch_size,window=n_C+n_T)
+                    t_te = np.repeat(np.linspace(-1,1,(n_C+n_T))[np.newaxis,:,np.newaxis],axis=0,repeats=valid_batch_size)
 
                 if args.dataset == "rbf":
                     t_te,y_te = batcher_np(x_val,y_val,batch_s=valid_batch_size)
                     ####nc nt need to be specified without interfering with the nc nt above
+                    n_C = 20
+                    n_T = 80
                 μ, log_σ = model([t_te, y_te, n_C, n_T, False])
                 _,_,_, nll_pp_te, msex_te = losses.nll(y_te[:, n_C:n_C+n_T], μ, log_σ)
 
@@ -141,27 +148,49 @@ if __name__ == "__main__":
                     step += 1
                     ckpt.step.assign_add(1)
 
+        ###################################################################
+        ########### Evaluation code #######################################
+        ###################################################################
+
+
         ckpt = tf.train.Checkpoint(step=tf.Variable(step), optimizer=opt, net=model)
         manager = tf.train.CheckpointManager(ckpt, folder, max_to_keep=1)
         ckpt.restore(manager.latest_checkpoint) 
+
+        if args.dataset != "rbf":
    
-        test_batch_s = 100 #need to specify this as it gets changed in the loop below
-        if n_T > 700 :
-            test_batch_s = 16
-        idx_list = list(range(x_test.shape[0] - (n_C+n_T)))
-        num_batches = len(idx_list)//test_batch_s
+            test_batch_s = 100 #need to specify this as it gets changed in the loop below
+            if n_T > 700 :
+                test_batch_s = 16
+            idx_list = list(range(x_test.shape[0] - (n_C+n_T)))
+            num_batches = len(idx_list)//test_batch_s
 
-        for _ in range(num_batches): #### specify correct number of batches for the batcher #####
-            if(_ == (num_batches-1)): test_batch_s = len(idx_list)        
-            t_te,y_te,idx_list = batcher(x_test, y_test, idx_list,batch_s = test_batch_s, window=n_C+n_T)
-            t_te = np.repeat(np.linspace(-1,1,(n_C+n_T))[np.newaxis,:,np.newaxis],axis=0,repeats=y_te.shape[0])
-            μ, log_σ = model([t_te, y_te, n_C, n_T, False])
-            _, sum_mse, sum_nll, _, _ = losses.nll(y_te[:, n_C:n_C+n_T], μ, log_σ)
-            sum_nll_tot += sum_nll / n_T
-            sum_mse_tot += sum_mse / n_T
+            for _ in range(num_batches): #### specify correct number of batches for the batcher #####
+                if(_ == (num_batches-1)): test_batch_s = len(idx_list)        
+                t_te,y_te,idx_list = batcher(x_test, y_test, idx_list,batch_s = test_batch_s, window=n_C+n_T)
+                t_te = np.repeat(np.linspace(-1,1,(n_C+n_T))[np.newaxis,:,np.newaxis],axis=0,repeats=y_te.shape[0])
+                μ, log_σ = model([t_te, y_te, n_C, n_T, False])
+                _, sum_mse, sum_nll, _, _ = losses.nll(y_te[:, n_C:n_C+n_T], μ, log_σ)
+                sum_nll_tot += sum_nll / n_T
+                sum_mse_tot += sum_mse / n_T
 
-        nllx =  sum_nll_tot / (test_batch_s * x_test.shape[0]//test_batch_s)
-        msex =  sum_mse_tot / (test_batch_s * x_test.shape[0]//test_batch_s)
+            nllx =  sum_nll_tot / (test_batch_s * x_test.shape[0]//test_batch_s)
+            msex =  sum_mse_tot / (test_batch_s * x_test.shape[0]//test_batch_s)
+
+
+        if args.dataset == "rbf":
+
+            for i in range(x_test.shape[0]):
+                n_C = tf.constant(n_context_test[i],"int32")
+                n_T = 100 - n_C
+                μ, log_σ = model([x_test[i:i+1], y_test[i:i+1], n_C, n_T, False])
+                _, sum_mse, sum_nll, _, _ = losses.nll(y_test[i:i+1, n_C:n_C+n_T], μ, log_σ)
+                sum_nll_tot += sum_nll / n_T
+                sum_mse_tot += sum_mse / n_T
+
+            nllx =  sum_nll_tot / x_test.shape[0]
+            msex =  sum_mse_tot / x_test.shape[0]
+
 
 
         nll_list.append(nllx.numpy())

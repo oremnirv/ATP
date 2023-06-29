@@ -1,7 +1,6 @@
 import tensorflow as tf
 from model import dot_prod
 
-########## need to switch the dropout to after the second dense layer in the FFN######
 
 class FFN_1(tf.keras.layers.Layer):
     def __init__(self, output_shape, dropout_rate=0.1):
@@ -25,7 +24,6 @@ class FFN_1(tf.keras.layers.Layer):
         x = self.dense_b(x)
         x = tf.nn.gelu(x)
         x = self.dropout(x, training=training)
-        # print(x) ### dropout works 
         x = self.dense_c(x)
         x += x_skip
         return self.layernorm[1](x)
@@ -51,7 +49,6 @@ class FFN_o(tf.keras.layers.Layer):
         x = self.dense_b(x)
         x = tf.nn.gelu(x)
         x = self.dropout(x, training=training)
-        # print(x) ### dropout works
         x = self.dense_c(x)
         x += x_skip
         return self.layernorm[1](x)
@@ -69,7 +66,6 @@ class MHA_X_a(tf.keras.layers.Layer):
     def call(self, query, key, value, mask, training = True):
         x = self.mha(query, key, value, mask)
         x = self.ffn(x, query, training=training)  # Shape `(batch_size, seq_len, output_shape)`.
-        # print(x) ### works in repeated runs
         return x
 
 class MHA_XY_a(tf.keras.layers.Layer):
@@ -85,7 +81,6 @@ class MHA_XY_a(tf.keras.layers.Layer):
     def call(self, query, key, value, mask, training=True):
         x = self.mha(query, key, value, mask)
         x = self.ffn(x, query, training=training)  # Shape `(batch_size, seq_len, output_shape)`.
-        # print(x)   ### works in repeated runs
 
         return x
 
@@ -103,7 +98,6 @@ class MHA_X_b(tf.keras.layers.Layer):
     def call(self, query, key, value, mask, training = True):
         x = self.mha(query, key, value, mask)
         x = self.ffn(x, query, training = training)  # Shape `(batch_size, seq_len, output_shape)`.
-        # print(x)   ### works in repeated runs
 
         return x
 
@@ -118,15 +112,14 @@ class MHA_XY_b(tf.keras.layers.Layer):
         self.mha = dot_prod.MultiHeadAttention(num_heads, output_shape, projection_shape)
         self.ffn = FFN_o(output_shape, dropout_rate)
 
-    def call(self, query, key, value, mask, prev_mha_xy_out, training=True):
+    def call(self, query, key, value, mask, training=True):
         x = self.mha(query, key, value, mask)
-        x = self.ffn(x, prev_mha_xy_out, training=training)  # Shape `(batch_size, seq_len, output_shape)`.
-        # print(x)   ### works in repeated runs
+        x = self.ffn(x, query, training=training)  # Shape `(batch_size, seq_len, output_shape)`.
 
         return x
 
 
-class ATP(tf.keras.Model):
+class taylorformer(tf.keras.Model):
     def __init__(self, num_heads,
                   projection_shape,
                   output_shape,
@@ -134,7 +127,7 @@ class ATP(tf.keras.Model):
                   dropout_rate=0.1, target_y_dim=1,
                   bound_std = False
                   ):
-        super(ATP, self).__init__()
+        super().__init__()
 
         self.num_layers = num_layers
         
@@ -157,30 +150,30 @@ class ATP(tf.keras.Model):
                   output_shape,
                   dropout_rate=dropout_rate) for _ in range(num_layers-1)]
 
+        self.linear_layer = tf.keras.layers.Dense(output_shape)
+
         self.dense_sigma = tf.keras.layers.Dense(target_y_dim)
         self.dense_last = tf.keras.layers.Dense(target_y_dim)
         self.bound_std = bound_std
 
     def call(self, input, training=True):
         query_x, key_x, value_x, query_xy, key_xy, value_xy, mask, y_n = input
-        x = self.mha_x_a(query_x,key_x, value_x, mask,training=training)
+
+        x = self.mha_x_a(query_x,query_x, query_x, mask,training=training)
         xy = self.mha_xy_a(query_xy, key_xy, value_xy, mask,training=training)
 
-        ##### new
+        for i in range(self.num_layers - 2):
 
-        for i in range(self.num_layers - 1):
+            xy  = self.mha_xy_b[i](xy, xy, xy, mask,training=training)
+            x  = self.mha_x_b[i](x, x, x, mask,training=training)
 
-            xy_temp = tf.identity(xy)
-            xy = xy + x
+        xy = self.mha_xy_b[-1](xy, xy, xy, mask,training=training)
+        x = self.mha_x_b[-1](x, x, value_x, mask,training=training)
 
-            xy  = self.mha_xy_b[i](xy, xy, xy, mask, xy_temp,training=training)
-            x  = self.mha_x_b[i](x, x, value_x, mask,training=training)
-
-            if ((i < (self.num_layers - 2)) | (self.num_layers <= 2)):
-                log_σ = self.dense_sigma(xy)
-
-
-        z = xy + x
+        combo = tf.concat([x,xy], axis = 2)
+        z = self.linear_layer(combo)
+        
+        log_σ = self.dense_sigma(z)
 
         μ = self.dense_last(z) + y_n
 
@@ -190,6 +183,5 @@ class ATP(tf.keras.Model):
             σ = 0.01 + 0.99 * tf.math.softplus(log_σ)
 
         log_σ = tf.math.log(σ)
-        # print(μ[:, 100]) 
-        # print(μ[:, 100].shape)
+    
         return μ, log_σ

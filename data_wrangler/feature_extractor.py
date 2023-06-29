@@ -161,11 +161,9 @@ class DE(tf.keras.layers.Layer):
         x_mask_inv = (x_mask == False)
         x_mask_float = tf.cast(x_mask_inv, "float32")*1000
         x_mask_float_repeat = tf.repeat(tf.expand_dims(x_mask_float, axis=0), axis=0, repeats=batch_size)
-        print(x_mask_float_repeat.shape)
         ix = tf.argsort(tf.cast(tf.math.reduce_euclidean_norm((current_x - x_temp), 
                                             axis=-1), dtype="float32") + x_mask_float_repeat, axis=-1)[:, :, 1]
 
-        print(ix.shape)
         selection_indices = tf.concat([tf.reshape(tf.repeat(tf.range(batch_size*target_m), 1), (-1, 1)), 
                                    tf.reshape(ix, (-1, 1))], axis=1)
 
