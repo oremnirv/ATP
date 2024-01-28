@@ -54,21 +54,21 @@ class atp_pipeline(keras.models.Model):
             end_index = tf.gather(indexing_tensor, index_position)
             # Ensure end_index is a 1D tensor for tf.map_fn
             end_index = tf.squeeze(end_index)
-            print("end_index", end_index)
+            # print("end_index", end_index)
             result = tensor[:, :end_index, :] 
             return result
         # Create a TensorArray
         tensor_array = tf.TensorArray(dtype=tf.float32, size=0, dynamic_size=True, infer_shape=False)
 
         n_C_shape = n_C.shape[0]
-        print("n_C_shape", n_C_shape)
+        # print("n_C_shape", n_C_shape)
         # Write tensors to the TensorArray
         for i in tf.range(n_C_shape):
             r_temp = extract_elements_up_to_index(tensor, n_C, i)
-            print('r_temp', r_temp)
+            # print('r_temp', r_temp)
             tensor_array = tensor_array.write(i, r_temp) 
 
-        print("tensor_array", tensor_array)        
+        # print("tensor_array", tensor_array)        
         # Read tensors to a python list, ensuring to keep the Tensor shapes
         # size = tensor_array.size()
         # tensor_list = []
@@ -80,7 +80,7 @@ class atp_pipeline(keras.models.Model):
         tensor_array_stacked = tensor_array.stack()
         # Concatenate the tensors along axis 1
         concatenated_tensor = tf.concat(tensor_array_stacked, axis=1)
-        print("concatenated_tensor", concatenated_tensor)
+        # print("concatenated_tensor", concatenated_tensor)
         return concatenated_tensor
 
 
@@ -114,11 +114,11 @@ class atp_pipeline(keras.models.Model):
             ts_label = tf.reshape(tf.repeat(eye[:, i][tf.newaxis, :], batch_size*(n_C[i] + n_T[i]), axis=0), (batch_size, -1, self.multiply)) # one hot encoding of the ts
             ts_end = ts_start +(n_C[i] + n_T[i])
             # print("ts_start", ts_start)
-            print("ts_end", ts_end)
 
             if self._subsample == True:
-                # print("subsample")
+                print("subsample")
                 x_temp, y_temp, idx_c, idx_t = self._feature_wrapper.subsample(x[:, ts_start:ts_end, :], y[:, ts_start:ts_end, :], n_C[i], n_T[i], n_C_s[i], n_T_s[i])
+
                 ts_label = tf.reshape(tf.repeat(eye[:, i][tf.newaxis, :], batch_size*(n_C_s[i] + n_T_s[i]), axis=0), (batch_size, -1, self.multiply)) # overwrites the previous ts_label
                 idx_c_all.append(idx_c)
                 idx_t_all.append(idx_t)
@@ -130,10 +130,19 @@ class atp_pipeline(keras.models.Model):
             # print("x_temp.shape", x_temp.shape)
             x_emb = [tf.concat([self._feature_wrapper.PE([x_temp[:, :, dim_num][:, :, tf.newaxis], self.enc_dim, self.xmin, self.xmax]), ts_label], axis=-1) for dim_num in range(x_temp.shape[-1])] 
             x_emb = tf.concat(x_emb, axis=-1) # (32, 30, 34)
-            print("x_emb.shape", x_emb.shape)
+            # print("x_emb.shape", x_emb.shape) 
             # take derivative of each ts separately
             if self._subsample:
+                print("subsample")
+                print('x_temp.shape', x_temp.shape)
+                print('n_C_s[0]', n_C_s[0])
+                tf.print(n_C_s[0])
                 y_diff, x_diff, d, x_n, y_n = self._DE([y_temp, x_temp, n_C_s[i], n_T_s[i], True]) #  (32, 30, 1),  (32, 30, 1), (32, 30, 2), (32, 30, 1), (32, 30, 1)
+                print("y_diff.shape", y_diff.shape)
+                print("x_diff.shape", x_diff.shape)
+                print("d.shape", d.shape)
+                print("x_n.shape", x_n.shape)
+                print("y_n.shape", y_n.shape)
             else:
                 y_diff, x_diff, d, x_n, y_n = self._DE([y_temp, x_temp, n_C[i], n_T[i], True]) #  (32, 30, 1),  (32, 30, 1), (32, 30, 2), (32, 30, 1), (32, 30, 1)
             inputs_for_processing.append([x_emb, y_temp, y_diff, x_diff, d, x_n, y_n])  
@@ -142,13 +151,14 @@ class atp_pipeline(keras.models.Model):
 
         if self._bc:
             # the end sequence will be (y_11,.., y_1n_C, y21, ..y_2n_C2, y1*, y1**, ...,y1****)    
-            if self._subsample:
-                temp_val = [n_C_s[i] + n_T_s[i] for i in range(self.multiply)]
-            else:
-                temp_val = [n_C[i] + n_T[i] for i in range(self.multiply)]
+            # if self._subsample:
+            #     temp_val = [n_C_s[i] + n_T_s[i] for i in range(self.multiply)]
+            # else:
+            #     temp_val = [n_C[i] + n_T[i] for i in range(self.multiply)]
 
             context_list = [self.concat_context_multi_ts(inputs_for_processing[i], n_C) for i in range(self.multiply)]
-            print('context_list:', context_list)
+            print('context_list 0:', context_list[0])
+            print('context_list 1:', context_list[1])
 
             context_list = tf.concat(context_list, axis=1)
 
@@ -173,7 +183,7 @@ class atp_pipeline(keras.models.Model):
             total_length = sum(n_C) + sum(n_T)
             x = x[:,:total_length,:]
             y = y[:,:total_length,:]
-        print("x shape:", x.shape)
+        # print("x shape:", x.shape)
         if (self._subsample == True) and (self.multiply == 1):
             x, y = self._feature_wrapper.subsample(x, y, n_C[0], n_T[0], n_C_s[0], n_T_s[0])
             n_C = n_C_s
@@ -198,7 +208,7 @@ class atp_pipeline(keras.models.Model):
         else:  
             # # the end sequence will be (y_11,.., y_1n_C, y21, ..y_2n_C, y1*, y2*, ..yk*, y1**, y2**, ..yk**)
             inputs_for_processing, y, y_n, _, _, idx_c, idx_t = self.inputs_for_multi_ts(x, y, n_C, n_T, n_C_s, n_T_s)
-            print("y shape after inputs_for_processing:", y.shape)
+            # print("y shape after inputs_for_processing:", y.shape)
             if (self._subsample):
                 n_C = n_C_s
                 n_T = n_T_s

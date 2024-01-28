@@ -12,27 +12,47 @@ class feature_wrapper(tf.keras.layers.Layer):
     def call(self,  inputs):
     
         x_emb,  y,  y_diff,  x_diff,  d,  x_n,  y_n,  n_C,  n_T = inputs # (batch_s, multiply * (n_C + n_T), enc_dim + multiply) (batch_s, multiply * (n_C + n_T), 1) (batch_s, multiply * (n_C + n_T), 1) (batch_s, multiply * (n_C + n_T), 1) (batch_s, multiply * (n_C + n_T), 2) (batch_s, multiply * (n_C + n_T), 1) (batch_s, multiply * (n_C + n_T), 1)
+        print("x_emb: ", x_emb.shape)
+        print("y: ", y.shape)
+        print("y_diff: ", y_diff.shape)
+        print("x_diff: ", x_diff.shape)
+        print("d: ", d.shape)
+        print("x_n: ", x_n.shape)
+        print("y_n: ", y_n.shape)
+        print("n_C: ", n_C)
+        print("n_T: ", n_T)
         ##### inputs for the MHA-X head ######
         value_x =  tf.identity(y) #check if identity is needed
         ### check what is happening with embedding
         x_prime =  tf.concat([x_emb,  x_diff,  x_n],  axis=2) # (batch_s, multiply * (n_C + n_T), enc_dim + multiply + 2)
+        print("x_prime: ", x_prime.shape)
         # print("x_prime: ", x_prime.shape)
         query_x = tf.identity(x_prime)
+        print("query_x: ", query_x.shape)
         key_x = tf.identity(x_prime)
+        print("key_x: ", key_x.shape)
 
         ##### inputs for the MHA-XY head ######
         y_prime = tf.concat([y,  y_diff,  d,  y_n], axis=-1)
+        print("y_prime: ", y_prime.shape)
         batch_s = (y_prime.shape)[0]
         # print("y_prime: ", y_prime.shape)
         key_xy_label = tf.zeros((batch_s,  n_C + n_T,  1))
+        print("key_xy_label: ", key_xy_label.shape)
         value_xy = tf.concat([y_prime,  key_xy_label,  x_prime], axis=-1)
+        print("value_xy: ", value_xy.shape)
         key_xy = tf.identity(value_xy)
+        print("key_xy: ", key_xy.shape)
         query_xy_label = tf.concat([tf.zeros((batch_s,  n_C ,  1)), tf.ones((batch_s,  n_T,  1))],  axis=1)
+        print("query_xy_label: ", query_xy_label.shape)
         # print("query_xy_label: ", query_xy_label.shape)
         y_prime_masked = tf.concat([self.mask_target_pt([y,  n_C,  n_T]),  self.mask_target_pt([y_diff,  n_C,  n_T]),  self.mask_target_pt([d,  n_C,  n_T]),  y_n],  axis=2)
+        print("y_prime_masked: ", y_prime_masked.shape)
         # print("y_prime_masked: ", y_prime_masked.shape)
 
         query_xy = tf.concat([y_prime_masked,  query_xy_label,  x_prime], axis=-1)
+        print('last')
+        print("query_xy: ", query_xy.shape)
         return query_x,  key_x,  value_x,  query_xy,  key_xy,  value_xy
 
     def mask_target_pt(self,  inputs):
@@ -94,10 +114,13 @@ class feature_wrapper(tf.keras.layers.Layer):
 
         tensors_x = self.gather_idx_from_tensors([x[:, :n_C, :], x[:, n_C:n_C+n_T, :]], [indices_c, indices_t])
         x = tf.concat(tensors_x, axis=1)
-        # print("x: ", x.shape)
         tensors_y = self.gather_idx_from_tensors([y[:, :n_C, :], y[:, n_C:n_C+n_T, :]], [indices_c, indices_t])
         y = tf.concat(tensors_y, axis=1)
-        # print("y: ", y.shape)
+        new_shape_x = [tf.shape(x)[0], n_C_s + n_T_s, x.shape[-1]]
+        x = tf.reshape(x, new_shape_x)
+        print('n_C_s_A', n_C_s)
+        new_shape_y = [tf.shape(y)[0], n_C_s + n_T_s, y.shape[-1]]
+        y = tf.reshape(y, new_shape_y)
         return x, y, indices_c, indices_t
         
         
@@ -127,9 +150,13 @@ class DE(tf.keras.layers.Layer):
 
     def call(self,  inputs):
         y,  x,  n_C,  n_T,  training = inputs
+        print('n_C', n_C)
+        print('n_T', n_T)
 
         if (x.shape[-1] == 1):
             print("1d")
+            print("y.shape", y.shape)
+            print("x.shape", x.shape)
             y_diff,  x_diff,  d,  x_n,  y_n = self.derivative_function([y,  x,  n_C,  n_T])
         else: 
             # print("2d")
@@ -154,14 +181,16 @@ class DE(tf.keras.layers.Layer):
  #### but you need mutli-dimensional y for the derivative
 
  ###### and explain why we do this
-
+    @tf.function
     def derivative_function(self,  inputs):
         
         y_values,  x_values,  context_n,  target_m = inputs
-
-        context_n = tf.cast(context_n, tf.int64)
-        target_m = tf.cast(target_m, tf.int64)
-        # print("x_values.shape") (32, 30, 1)
+        context_n1 = tf.cast(context_n, tf.int64)
+        target_m1 = tf.cast(target_m, tf.int64)
+        # context_n = tf.cast(context_n, tf.int64)
+        # target_m = tf.cast(target_m, tf.int64)
+        # print('here')
+        # print(x_values) (32, 30, 1)
         epsilon = 0.000002 
 
         batch_size = y_values.shape[0]
@@ -172,34 +201,37 @@ class DE(tf.keras.layers.Layer):
 
         #context section
 
-        current_x = tf.expand_dims(x_values[:,  :context_n], axis=2) # (32, 20, 1, 1)
-        current_y = tf.expand_dims(y_values[:,  :context_n], axis=2) # (32, 20, 1, 1)
+        current_x = tf.expand_dims(x_values[:,  :context_n1], axis=2) # (32, 20, 1, 1)
+        current_y = tf.expand_dims(y_values[:,  :context_n1], axis=2) # (32, 20, 1, 1)
 
-
-        x_temp = x_values[:, :context_n]
-        x_temp = tf.repeat(tf.expand_dims(x_temp,  axis=1),  axis=1,  repeats=context_n) #x_temp.shape (32, 20, 20, 1)
-
-        y_temp = y_values[:, :context_n]
-        y_temp = tf.repeat(tf.expand_dims(y_temp,  axis=1),  axis=1,  repeats=context_n)
+        print("current_x.shape", current_x.shape)
+        x_temp = x_values[:, :context_n1]
+        print("x_temp.shape1", x_temp.shape) # (32, 20, 1)
+        x_temp = tf.repeat(tf.expand_dims(x_temp,  axis=1),  axis=1,  repeats=context_n1) #x_temp.shape (32, 20, 20, 1)
+        print("x_temp.shape2", x_temp.shape)
+        y_temp = y_values[:, :context_n1]
+        print("y_temp.shape1", y_temp.shape)
+        y_temp = tf.repeat(tf.expand_dims(y_temp,  axis=1),  axis=1,  repeats=context_n1)
         
 
         ix = tf.argsort(tf.math.reduce_euclidean_norm((current_x - x_temp), axis=-1), axis=-1)[:, :, 1]
-    
+        print("ix.shape", ix.shape)
         ix = tf.cast(ix, tf.int64)
-        selection_indices = tf.concat([tf.reshape(tf.repeat(tf.range(batch_size*context_n), 1), (-1, 1)), 
+        selection_indices = tf.concat([tf.reshape(tf.repeat(tf.range(batch_size*context_n1), 1), (-1, 1)), 
                                     tf.reshape(ix, (-1, 1))], axis=1)
 
 
-        x_closest = tf.reshape(tf.gather_nd(tf.reshape(x_temp, (-1, context_n, dim_x)), selection_indices), 
-                            (batch_size, context_n, dim_x)) 
+        x_closest = tf.reshape(tf.gather_nd(tf.reshape(x_temp, (-1, context_n1, dim_x)), selection_indices), 
+                            (batch_size, context_n1, dim_x)) 
         
-        
-        y_closest = tf.reshape(tf.gather_nd(tf.reshape(y_temp, (-1, context_n, dim_y)), selection_indices), 
-                    (batch_size, context_n, dim_y))
-        
+        print("x_closest.shape", x_closest.shape)
+        y_closest = tf.reshape(tf.gather_nd(tf.reshape(y_temp, (-1, context_n1, dim_y)), selection_indices), 
+                    (batch_size, context_n1, dim_y))
+        print("y_closest.shape", y_closest.shape)
         x_rep = current_x[:, :, 0] - x_closest
         y_rep = current_y[:, :, 0] - y_closest            
-
+        print("x_rep.shape", x_rep.shape)
+        print("y_rep.shape", y_rep.shape)
         if not self.img_seg: # or not bc for heatwave
 
             deriv = y_rep / (epsilon + tf.math.reduce_euclidean_norm(x_rep, axis=-1, keepdims=True))
@@ -207,21 +239,44 @@ class DE(tf.keras.layers.Layer):
         else:
             deriv = tf.zeros_like(y_rep)
 
-        dydx_dummy = deriv
-        diff_y_dummy = y_rep
-        diff_x_dummy =x_rep
-        closest_y_dummy = y_closest
-        closest_x_dummy = x_closest
+        self.dydx_dummy = deriv
+        self.diff_y_dummy = y_rep
+        self.diff_x_dummy =x_rep
+        self.closest_y_dummy = y_closest
+        self.closest_x_dummy = x_closest
         #target selection
-        if (target_m > 0):
-            current_x = tf.expand_dims(x_values[:, context_n:context_n+target_m], axis=2)
+        # if (target_m == tf.constant(0)):
+        #     print('target_m == 0')
+        # else:
+        #     print('target_m != 0')
+
+        
+        def false_fn():
+            print('target_m == 0')
+            return self.diff_y_dummy, self.diff_x_dummy, self.dydx_dummy, self.closest_x_dummy, self.closest_y_dummy
+
+        def true_fn():
+            print('target_m > 0')
+            print('context_n', context_n)
+            print('target_m', target_m)
+            print('x_values.shape', x_values.shape)
+            current_x = x_values[:, context_n:context_n+target_m, :]
+            current_x = tf.reshape(current_x, [tf.shape(x_values)[0], target_m, 1])
+            print('current_x_T.shape', current_x.shape)
+            current_x = tf.expand_dims(current_x, axis=2)
+            print("current_x.shape_A", current_x.shape)
+            current_x = tf.reshape(current_x, [tf.shape(x_values)[0], target_m, 1, 1])
+            print("current_x.shape_B", current_x.shape)
             current_y = tf.expand_dims(y_values[:, context_n:context_n+target_m], axis=2)
+            print("current_y.shape", current_y.shape)
 
             x_temp = tf.repeat(tf.expand_dims(x_values[:, :target_m+context_n], axis=1), axis=1, repeats=target_m)
             y_temp = tf.repeat(tf.expand_dims(y_values[:, :target_m+context_n], axis=1), axis=1, repeats=target_m)
+            print("x_temp.shape", x_temp.shape)
+            print("y_temp.shape", y_temp.shape)
 
             
-            x_mask = tf.linalg.band_part(tf.ones((target_m, context_n + target_m), tf.bool),  tf.cast(-1, tf.int64), context_n)
+            x_mask = tf.linalg.band_part(tf.ones((target_m, context_n + target_m), tf.bool),  tf.cast(-1, tf.int32), context_n)
             x_mask_inv = (x_mask == False)
             x_mask_float = tf.cast(x_mask_inv, "float32")*1000
             x_mask_float_repeat = tf.repeat(tf.expand_dims(x_mask_float, axis=0), axis=0, repeats=batch_size)
@@ -230,18 +285,22 @@ class DE(tf.keras.layers.Layer):
                                                 axis=-1), dtype="float32") + x_mask_float_repeat, axis=-1)[:, :, 1]
 
             ix = tf.cast(ix, tf.int64)
-            selection_indices = tf.concat([tf.reshape(tf.repeat(tf.range(batch_size*target_m), 1), (-1, 1)), 
+            selection_indices = tf.concat([tf.reshape(tf.repeat(tf.range(batch_size*target_m1), 1), (-1, 1)), 
                                     tf.reshape(ix, (-1, 1))], axis=1)
 
-            x_closest = tf.reshape(tf.gather_nd(tf.reshape(x_temp, (-1, target_m+context_n, dim_x)), selection_indices), 
+            x_closest = tf.reshape(tf.gather_nd(tf.reshape(x_temp, (-1, target_m1+context_n1, dim_x)), selection_indices), 
                                 (batch_size, target_m, dim_x)) 
             
-            y_closest = tf.reshape(tf.gather_nd(tf.reshape(y_temp, (-1, target_m+context_n, dim_y)), selection_indices), 
+            y_closest = tf.reshape(tf.gather_nd(tf.reshape(y_temp, (-1, target_m1+context_n1, dim_y)), selection_indices), 
                         (batch_size, target_m, dim_y))
+            print("x_closest.shape", x_closest.shape)
+            print("y_closest.shape", y_closest.shape)
             
             
             x_rep = current_x[:, :, 0] - x_closest
-            y_rep = current_y[:, :, 0] - y_closest            
+            y_rep = current_y[:, :, 0] - y_closest  
+            print("x_rep.shape", x_rep.shape)
+            print("y_rep.shape", y_rep.shape)          
 
             if not self.img_seg: # or not bc for heatwave
 
@@ -250,11 +309,13 @@ class DE(tf.keras.layers.Layer):
             else:
                 deriv = tf.zeros_like(y_rep)
 
-            dydx_dummy = tf.concat([dydx_dummy, deriv], axis=1)
-            diff_y_dummy = tf.concat([diff_y_dummy, y_rep], axis=1)
-            diff_x_dummy = tf.concat([diff_x_dummy, x_rep], axis=1)
-            closest_y_dummy = tf.concat([closest_y_dummy, y_closest], axis=1)
-            closest_x_dummy = tf.concat([closest_x_dummy, x_closest], axis=1)
+            dydx_dummy = tf.concat([self.dydx_dummy, deriv], axis=1)
+            diff_y_dummy = tf.concat([self.diff_y_dummy, y_rep], axis=1)
+            diff_x_dummy = tf.concat([self.diff_x_dummy, x_rep], axis=1)
+            closest_y_dummy = tf.concat([self.closest_y_dummy, y_closest], axis=1)
+            closest_x_dummy = tf.concat([self.closest_x_dummy, x_closest], axis=1)
+            return diff_y_dummy, diff_x_dummy, dydx_dummy, closest_x_dummy, closest_y_dummy
+        diff_y_dummy, diff_x_dummy, dydx_dummy, closest_x_dummy, closest_y_dummy = tf.cond(target_m1 > 0, true_fn, false_fn)
 
         return diff_y_dummy, diff_x_dummy, dydx_dummy, closest_x_dummy, closest_y_dummy
 
