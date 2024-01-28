@@ -111,8 +111,10 @@ class atp_pipeline(keras.models.Model):
         for i in range(self.multiply):
             
             # embed each ts separately and each dimension separately
-            ts_label = tf.reshape(tf.repeat(eye[:, i][tf.newaxis, :], batch_size*(n_C[i] + n_T[i]), axis=0), (batch_size, -1, self.multiply)) # one hot encoding of the ts
-            ts_end = ts_start +(n_C[i] + n_T[i])
+            total_length = tf.cast(n_C[i] + n_T[i], tf.int32)
+            ts_label = tf.reshape(tf.repeat(eye[:, i][tf.newaxis, :], batch_size*(total_length), axis=0), (batch_size, -1, self.multiply)) # one hot encoding of the ts
+            ts_end = ts_start + (total_length)
+            tf.print("ts_end", ts_end)
             # print("ts_start", ts_start)
 
             if self._subsample == True:

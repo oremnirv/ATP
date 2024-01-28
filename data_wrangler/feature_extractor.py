@@ -261,17 +261,18 @@ class DE(tf.keras.layers.Layer):
             print('target_m', target_m)
             print('x_values.shape', x_values.shape)
             current_x = x_values[:, context_n:context_n+target_m, :]
-            current_x = tf.reshape(current_x, [tf.shape(x_values)[0], target_m, 1])
+            current_x = tf.reshape(current_x, [tf.shape(x_values)[0], 20, 1])
             print('current_x_T.shape', current_x.shape)
             current_x = tf.expand_dims(current_x, axis=2)
             print("current_x.shape_A", current_x.shape)
-            current_x = tf.reshape(current_x, [tf.shape(x_values)[0], target_m, 1, 1])
+            current_x = tf.reshape(current_x, [tf.shape(x_values)[0], 20, 1, 1])
             print("current_x.shape_B", current_x.shape)
             current_y = tf.expand_dims(y_values[:, context_n:context_n+target_m], axis=2)
+            current_y = tf.reshape(current_y, [tf.shape(y_values)[0], 20, 1, 1])
             print("current_y.shape", current_y.shape)
 
-            x_temp = tf.repeat(tf.expand_dims(x_values[:, :target_m+context_n], axis=1), axis=1, repeats=target_m)
-            y_temp = tf.repeat(tf.expand_dims(y_values[:, :target_m+context_n], axis=1), axis=1, repeats=target_m)
+            x_temp = tf.repeat(tf.expand_dims(x_values[:, :target_m+context_n], axis=1), axis=1, repeats=20)
+            y_temp = tf.repeat(tf.expand_dims(y_values[:, :target_m+context_n], axis=1), axis=1, repeats=20)
             print("x_temp.shape", x_temp.shape)
             print("y_temp.shape", y_temp.shape)
 
