@@ -25,6 +25,8 @@ class atp_pipeline(keras.models.Model):
         self.y_target_dim = y_target_dim
         self.multiply = multiply
         self._subsample = subsample
+        self.n_C_s = [120, 20]
+        self.n_T_s = [0, 20]
         self._bc = bc   
         self._feature_wrapper = feature_wrapper()
         if self._MHAX_leakage == True:
@@ -39,7 +41,7 @@ class atp_pipeline(keras.models.Model):
         elif self._MHAX_leakage == "xxx":
             self._atp = ATP_no_leakage_xxx(num_heads=num_heads,dropout_rate=rate,num_layers=num_layers,output_shape=output_shape,
                         projection_shape=projection_shape_for_head*num_heads,bound_std=bound_std, y_target_dim=self.y_target_dim)
-        self._DE = DE(img_seg=self.img_seg) 
+        self._DE = DE(self.n_C_s, self.n_T_s, img_seg=self.img_seg) 
     
     # def concat_context_multi_ts(self, list_of_inputs, dim, n_C):
     #     return tf.concat([list_of_inputs[i][dim][:, :n_C[i], :] for i in range(len(list_of_inputs))], axis=1)
@@ -52,10 +54,10 @@ class atp_pipeline(keras.models.Model):
         def extract_elements_up_to_index(tensor, indexing_tensor, index_position):
             # Use tf.gather to extract the specific index for each row
             end_index = tf.gather(indexing_tensor, index_position)
-            # Ensure end_index is a 1D tensor for tf.map_fn
             end_index = tf.squeeze(end_index)
             # print("end_index", end_index)
             result = tensor[:, :end_index, :] 
+            print("result", result)
             return result
         # Create a TensorArray
         tensor_array = tf.TensorArray(dtype=tf.float32, size=0, dynamic_size=True, infer_shape=False)
@@ -65,18 +67,10 @@ class atp_pipeline(keras.models.Model):
         # Write tensors to the TensorArray
         for i in tf.range(n_C_shape):
             r_temp = extract_elements_up_to_index(tensor, n_C, i)
-            # print('r_temp', r_temp)
             tensor_array = tensor_array.write(i, r_temp) 
 
-        # print("tensor_array", tensor_array)        
+        print("tensor_array", tensor_array)        
         # Read tensors to a python list, ensuring to keep the Tensor shapes
-        # size = tensor_array.size()
-        # tensor_list = []
-        # for i in tf.range(size):
-        #     tensor_list.append(tensor_array.read(i))
-        # print("tensor_list", tensor_list)
-        # # Concatenate the tensors along axis 0
-        # concatenated_tensor = tf.concat(tensor_list, axis=1)
         tensor_array_stacked = tensor_array.stack()
         # Concatenate the tensors along axis 1
         concatenated_tensor = tf.concat(tensor_array_stacked, axis=1)
@@ -84,16 +78,40 @@ class atp_pipeline(keras.models.Model):
         return concatenated_tensor
 
 
-    def concat_context_multi_ts(self, tensor, n_C):
-        a1 = tf.expand_dims(self.concatenate_tensors(tensor[0], n_C), axis=3)
-        a2 = tf.expand_dims(self.concatenate_tensors(tensor[1], n_C), axis=3)
-        a3 = tf.expand_dims(self.concatenate_tensors(tensor[2], n_C), axis=3)
-        a4 = tf.expand_dims(self.concatenate_tensors(tensor[3], n_C), axis=3)
-        a5 = tf.expand_dims(self.concatenate_tensors(tensor[4], n_C), axis=3)
-        a6 = tf.expand_dims(self.concatenate_tensors(tensor[5], n_C), axis=3)
-        a7 = tf.expand_dims(self.concatenate_tensors(tensor[6], n_C), axis=3)
+    def concat_context_multi_ts(self, tensor):
+        tensor0 = tf.concat([tensor[i][0] for i in range(len(tensor))], axis=1)
+        tensor1 = tf.concat([tensor[i][1] for i in range(len(tensor))], axis=1)
+        tensor2 = tf.concat([tensor[i][2] for i in range(len(tensor))], axis=1)
+        tensor3 = tf.concat([tensor[i][3] for i in range(len(tensor))], axis=1)
+        tensor4 = tf.concat([tensor[i][4] for i in range(len(tensor))], axis=1)
+        tensor5 = tf.concat([tensor[i][5] for i in range(len(tensor))], axis=1)
+        tensor6 = tf.concat([tensor[i][6] for i in range(len(tensor))], axis=1)
+        print("tensor0.shape", tensor0.shape)
+        print("tensor1.shape", tensor1.shape)
+        print("tensor2.shape", tensor2.shape)
+        print("tensor3.shape", tensor3.shape)
+        print("tensor4.shape", tensor4.shape)
+        print("tensor5.shape", tensor5.shape)
+        print("tensor6.shape", tensor6.shape)
+        # n_C1 = tf.constant([120, 20])
+        # a1  = self.concatenate_tensors(tensor0, n_C1)
+        # a1 = tf.reshape(a1, (a1.shape[0], -1, a1.shape[-1]))
+        # print("a1.shape", a1.shape)
+        a1 = tf.expand_dims(tensor0, axis=3)
+        a2 = tf.expand_dims(tensor1, axis=3)
+        a3 = tf.expand_dims(tensor2, axis=3)
+        a4 = tf.expand_dims(tensor3, axis=3)
+        a5 = tf.expand_dims(tensor4, axis=3)
+        a6 = tf.expand_dims(tensor5, axis=3)
+        a7 = tf.expand_dims(tensor6, axis=3)
+        # a2 = tf.expand_dims(self.concatenate_tensors(tensor1, n_C1), axis=3)
+        # a3 = tf.expand_dims(self.concatenate_tensors(tensor2, n_C1), axis=3)
+        # a4 = tf.expand_dims(self.concatenate_tensors(tensor3, n_C1), axis=3)
+        # a5 = tf.expand_dims(self.concatenate_tensors(tensor4, n_C1), axis=3)
+        # a6 = tf.expand_dims(self.concatenate_tensors(tensor5, n_C1), axis=3)
+        # a7 = tf.expand_dims(self.concatenate_tensors(tensor6, n_C1), axis=3)
 
-        return tf.concat([a1, a2, a3, a4, a5, a6, a7], axis=3)
+        return [a1, a2, a3, a4, a5, a6, a7]
 
 
     def concat_target_multi_ts(self, list_of_inputs, dim, n_C, n_T, last_dim):
@@ -136,33 +154,42 @@ class atp_pipeline(keras.models.Model):
             # take derivative of each ts separately
             if self._subsample:
                 print("subsample")
-                print('x_temp.shape', x_temp.shape)
-                print('n_C_s[0]', n_C_s[0])
-                tf.print(n_C_s[0])
-                y_diff, x_diff, d, x_n, y_n = self._DE([y_temp, x_temp, n_C_s[i], n_T_s[i], True]) #  (32, 30, 1),  (32, 30, 1), (32, 30, 2), (32, 30, 1), (32, 30, 1)
-                print("y_diff.shape", y_diff.shape)
-                print("x_diff.shape", x_diff.shape)
-                print("d.shape", d.shape)
-                print("x_n.shape", x_n.shape)
-                print("y_n.shape", y_n.shape)
+                x_temp_context = x_temp[:, :n_C_s[i], :]
+                y_temp_context = y_temp[:, :n_C_s[i], :]
+                x_temp_target = x_temp[:, n_C_s[i]:n_C_s[i]+n_T_s[i], :]
+                y_temp_target = y_temp[:, n_C_s[i]:n_C_s[i]+n_T_s[i], :]
+
+                if i == 0:
+                    print("i==0")
+                    y_diff, x_diff, d, x_n, y_n = self._DE([y_temp_context, y_temp_target, x_temp_context, x_temp_target, 120, 0, i, True]) #  (32, 30, 1),  (32, 30, 1), (32, 30, 2), (32, 30, 1), (32, 30, 1)
+                    print("y_diff.shape", y_diff.shape)
+                    print("x_diff.shape", x_diff.shape)
+                    print("d.shape", d.shape)
+                    print("x_n.shape", x_n.shape)
+                    print("y_n.shape", y_n.shape)
+   
+                else:
+                    print("i!=0")
+                    y_diff, x_diff, d, x_n, y_n = self._DE([y_temp_context, y_temp_target, x_temp_context, x_temp_target, 20, 20, i, True])
+                    y_diff = tf.reshape(y_diff, (batch_size, n_C_s[i]+n_T_s[i], 1))
+                    x_diff = tf.reshape(x_diff, (batch_size, n_C_s[i]+n_T_s[i], 1))
+                    d = tf.reshape(d, (batch_size, n_C_s[i]+n_T_s[i], 2))
+                    x_n = tf.reshape(x_n, (batch_size, n_C_s[i]+n_T_s[i], 1))
+                    y_n = tf.reshape(y_n, (batch_size, n_C_s[i]+n_T_s[i], 1))
+
             else:
                 y_diff, x_diff, d, x_n, y_n = self._DE([y_temp, x_temp, n_C[i], n_T[i], True]) #  (32, 30, 1),  (32, 30, 1), (32, 30, 2), (32, 30, 1), (32, 30, 1)
+            
             inputs_for_processing.append([x_emb, y_temp, y_diff, x_diff, d, x_n, y_n])  
             ts_start = ts_end
         
 
         if self._bc:
             # the end sequence will be (y_11,.., y_1n_C, y21, ..y_2n_C2, y1*, y1**, ...,y1****)    
-            # if self._subsample:
-            #     temp_val = [n_C_s[i] + n_T_s[i] for i in range(self.multiply)]
-            # else:
-            #     temp_val = [n_C[i] + n_T[i] for i in range(self.multiply)]
-
-            context_list = [self.concat_context_multi_ts(inputs_for_processing[i], n_C) for i in range(self.multiply)]
+            context_list = self.concat_context_multi_ts(inputs_for_processing) 
             print('context_list 0:', context_list[0])
             print('context_list 1:', context_list[1])
 
-            context_list = tf.concat(context_list, axis=1)
 
             x_emb, y, y_diff, x_diff, d, x_n, y_n  = context_list
         else:
