@@ -6,10 +6,10 @@ from model import losses
 def build_graph():
     
     @tf.function(experimental_relax_shapes=True)
-    def train_step(atp_model, optimizer, x, y, n_C, n_T, training=True, n_C_s = None, n_T_s = None, img_seg = False):
+    def train_step(atp_model, optimizer, x, y, n_C, n_T, training=True, n_C_s = None, n_T_s = None, img_seg = False, labels = False):
         with tf.GradientTape(persistent=True) as tape:
 
-            μ, log_σ, y1 = atp_model([x, y, n_C, n_T, training, n_C_s, n_T_s])  
+            μ, log_σ, y1 = atp_model([x, y, n_C, n_T, training, n_C_s, n_T_s, labels])  
             if img_seg:
                 likpp, mse = losses.categorical_ce(y1, μ)
             else:

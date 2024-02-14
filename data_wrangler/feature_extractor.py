@@ -28,6 +28,8 @@ class feature_wrapper(tf.keras.layers.Layer):
         key_xy = tf.identity(value_xy)
         query_xy_label = tf.concat([tf.zeros((batch_s,  n_C ,  1)), tf.ones((batch_s,  n_T,  1))],  axis=1)
         y_prime_masked = tf.concat([self.mask_target_pt([y,  n_C,  n_T]),  self.mask_target_pt([y_diff,  n_C,  n_T]),  self.mask_target_pt([d,  n_C,  n_T]),  y_n],  axis=2)
+        print("y_prime_masked.shape", y_prime_masked.shape)
+        print("query_xy_label.shape", query_xy_label.shape)
         query_xy = tf.concat([y_prime_masked,  query_xy_label,  x_prime], axis=-1)
         return query_x,  key_x,  value_x,  query_xy,  key_xy,  value_xy
 
@@ -82,16 +84,19 @@ class feature_wrapper(tf.keras.layers.Layer):
         Returns:
             x, y: tensors of shape (B, n_C_s+n_T_s, d)
         """
-
+        n_C_s = tf.cast(n_C_s, tf.int32)
+        n_T_s = tf.cast(n_T_s, tf.int32)
         indices_c = self.sorted_rand_idx(n_C, n_C_s)
         # print("indices c: ", indices_c)
         indices_t = self.sorted_rand_idx(n_T, n_T_s)
-
+        print('x.shape 1', x.shape)
         tensors_x = self.gather_idx_from_tensors([x[:, :n_C, :], x[:, n_C:n_C+n_T, :]], [indices_c, indices_t])
         x = tf.concat(tensors_x, axis=1)
+        print('x.shape 2', x.shape)
         tensors_y = self.gather_idx_from_tensors([y[:, :n_C, :], y[:, n_C:n_C+n_T, :]], [indices_c, indices_t])
         y = tf.concat(tensors_y, axis=1)
         new_shape_x = [tf.shape(x)[0], n_C_s + n_T_s, x.shape[-1]]
+        print("new_shape_x", new_shape_x)
         x = tf.reshape(x, new_shape_x)
         # print('n_C_s_A', n_C_s)
         new_shape_y = [tf.shape(y)[0], n_C_s + n_T_s, y.shape[-1]]
@@ -164,8 +169,8 @@ class DE(tf.keras.layers.Layer):
 
         dim_x = x_temp_context.shape[-1]
         dim_y = y_temp_context.shape[-1]
-        # print('y_temp_context.shape', y_temp_context.shape)
-        # print('y_temp_target.shape', y_temp_target.shape)
+        print('y_temp_context.shape', y_temp_context.shape)
+        print('y_temp_target.shape', y_temp_target.shape)
         # print('x_temp_context.shape', x_temp_context.shape)
         # print('x_temp_target.shape', x_temp_target.shape)
         c_m = tf.shape(y_temp_context)[1]

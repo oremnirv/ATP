@@ -5,7 +5,7 @@ from model import atp_pipeline
 from data_wrangler import dataset_preparer, batcher
 
 class model_init():
-        def __init__(self, model_name, run, task='forecasting/ETT/', multiply=1, bc=False, subsample = False, y_target_dim=1, img_seg=False):
+        def __init__(self, model_name, run, task='forecasting/ETT/', multiply=1, bc=False, subsample = False, y_target_dim=1, img_seg=False, labels=False):
             super().__init__()
             self.model_name = model_name
             self.opt = tf.keras.optimizers.Adam(3e-4)
@@ -15,6 +15,7 @@ class model_init():
             self.img_seg = img_seg
             self.subsample = subsample
             self.multiply = multiply
+            self.labels = labels
             self.save_dir = "weights/{}/{}/".format(task, model_name)
             self.tr_step = atp_graph.build_graph()
             assert model_name in ['leak', 'atp', 'new_block']

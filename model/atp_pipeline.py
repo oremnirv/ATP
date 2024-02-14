@@ -95,56 +95,93 @@ class atp_pipeline(keras.models.Model):
         x = tf.reshape(x, (x.shape[0], -1, last_dim))
         return x
 
-    def inputs_for_multi_ts(self, x, y, n_C, n_T, n_C_s, n_T_s):
+    def inputs_for_multi_ts(self, x, y, n_C, n_T, n_C_s, n_T_s, labels = None):
         batch_size = x.shape[0]
+        
         inputs_for_processing = []
-        eye = tf.eye(self.multiply)
+        print(x.shape)
+        eye = tf.eye(33, dtype=tf.float32)
+        ## pick the rows of the eye matrix that correspond to the ts
+        print("labels", labels)
+        labels = tf.cast(labels, tf.int32)
+        ts_labels  = tf.gather(eye, labels, axis=0)
+        print("ts_labels", ts_labels)
+        labels_l  = len(labels) 
         ts_start = 0
-        for i in range(self.multiply):
-            
-            # embed each ts separately and each dimension separately
-            total_length = tf.cast(n_C[i] + n_T[i], tf.int32)
-            ts_label = tf.reshape(tf.repeat(eye[:, i][tf.newaxis, :], batch_size*(total_length), axis=0), (batch_size, -1, self.multiply)) # one hot encoding of the ts
+        total_length = 180
+        for i in range(labels_l):
+            # embed each ts separately and each dimension separately    
+            ts_label = ts_labels[i, :]
+            # ts_label = tf.reshape(tf.repeat(ts_label[tf.newaxis, :], batch_size*(total_length), axis=0), (batch_size, -1, labels_l)) # one hot encoding of the ts 
             ts_end = ts_start + (total_length)
 
             if self._subsample == True:
                 print("subsample")
-                x_temp, y_temp = self._feature_wrapper.subsample(x[:, ts_start:ts_end, :], y[:, ts_start:ts_end, :], n_C[i], n_T[i], n_C_s[i], n_T_s[i])
+                indices = tf.range(ts_start, ts_end)
+                x_temp = tf.gather(x, indices, axis=1)
+                y_temp = tf.gather(y, indices, axis=1)
+                if (i == (labels_l - 1)):
+                    x_temp, y_temp = self._feature_wrapper.subsample(x_temp, y_temp, 60, 120, 20, 10)
+                    ts_label = tf.reshape(tf.repeat(ts_label[tf.newaxis, :], batch_size*30, axis=0), (batch_size, -1, 33)) # one hot encoding of the ts
+                    x_temp = tf.reshape(x_temp, (batch_size, 30, -1))
+                    y_temp = tf.reshape(y_temp, (batch_size, 30, -1))
 
-                ts_label = tf.reshape(tf.repeat(eye[:, i][tf.newaxis, :], batch_size*(n_C_s[i] + n_T_s[i]), axis=0), (batch_size, -1, self.multiply)) # overwrites the previous ts_label
-                # idx_c_all.append(idx_c)
-                # idx_t_all.append(idx_t)
-                # print("finished subsample")
+                else:   
+                    x_temp, y_temp = self._feature_wrapper.subsample(x_temp, y_temp, 180, 0, 120, 0)
+                    ts_label = tf.reshape(tf.repeat(ts_label[tf.newaxis, :], batch_size*120, axis=0), (batch_size, -1, 33)) # one hot encoding of the ts
+                    x_temp = tf.reshape(x_temp, (batch_size, 120, -1))
+                    y_temp = tf.reshape(y_temp, (batch_size, 120, -1))
+
+
             else:
                 x_temp = x[:, ts_start:ts_end, :]
                 y_temp = y[:, ts_start:ts_end, :]
 
-            # print("x_temp.shape", x_temp.shape)
+            print("x_temp.shape", x_temp.shape)
+            
+            print("ts_label.shape", ts_label.shape)
             x_emb = [tf.concat([self._feature_wrapper.PE([x_temp[:, :, dim_num][:, :, tf.newaxis], self.enc_dim, self.xmin, self.xmax]), ts_label], axis=-1) for dim_num in range(x_temp.shape[-1])] 
             x_emb = tf.concat(x_emb, axis=-1) # (32, 30, 34)
-            # print("x_emb.shape", x_emb.shape) 
+
+            print("x_emb.shape", x_emb.shape) 
             # take derivative of each ts separately
             if self._subsample:
                 print("subsample")
-                x_temp_context = x_temp[:, :n_C_s[i], :]
-                y_temp_context = y_temp[:, :n_C_s[i], :]
-                x_temp_target = x_temp[:, n_C_s[i]:n_C_s[i]+n_T_s[i], :]
-                y_temp_target = y_temp[:, n_C_s[i]:n_C_s[i]+n_T_s[i], :]
 
-                if i == 0:
-                    y_diff, x_diff, d, x_n, y_n = self._DE([y_temp, x_temp, y_temp_context, y_temp_target, x_temp_context, x_temp_target, 120, 0, i, True]) #  (32, 30, 1),  (32, 30, 1), (32, 30, 2), (32, 30, 1), (32, 30, 1)
+                if (i == (labels_l - 1)):
+                    x_temp_context = x_temp[:, :20, :]
+                    y_temp_context = y_temp[:, :20, :]
+                    x_temp_target = x_temp[:, 20:30, :]
+                    y_temp_target = y_temp[:, 20:30, :]
+
+                    y_diff, x_diff, d, x_n, y_n = self._DE([y_temp, x_temp, y_temp_context, y_temp_target, x_temp_context, x_temp_target, 20, 10, i, True]) #  (32, 30, 1),  (32, 30, 1), (32, 30, 2), (32, 30, 1), (32, 30, 1)
    
                 else:
-                    y_diff, x_diff, d, x_n, y_n = self._DE([y_temp, x_temp, y_temp_context, y_temp_target, x_temp_context, x_temp_target, 20, 20, i, True])
-                    y_diff = tf.reshape(y_diff, (batch_size, n_C_s[i]+n_T_s[i], 1))
-                    x_diff = tf.reshape(x_diff, (batch_size, n_C_s[i]+n_T_s[i], 1))
-                    d = tf.reshape(d, (batch_size, n_C_s[i]+n_T_s[i], 2))
-                    x_n = tf.reshape(x_n, (batch_size, n_C_s[i]+n_T_s[i], 1))
-                    y_n = tf.reshape(y_n, (batch_size, n_C_s[i]+n_T_s[i], 1))
+                    x_temp_context = x_temp[:, :120, :]
+                    y_temp_context = y_temp[:, :120, :]
+                    x_temp_target = x_temp[:, 120:120, :]
+                    y_temp_target = y_temp[:, 120:120, :]
+                    y_diff, x_diff, d, x_n, y_n = self._DE([y_temp, x_temp, y_temp_context, y_temp_target, x_temp_context, x_temp_target, 120, 0, i, True])
+                    y_diff = tf.reshape(y_diff, (batch_size, 120, 1))
+                    x_diff = tf.reshape(x_diff, (batch_size, 120, 1))
+                    d = tf.reshape(d, (batch_size, 120, 2))
+                    x_n = tf.reshape(x_n, (batch_size, 120, 1))
+                    y_n = tf.reshape(y_n, (batch_size, 120, 1))
 
             else:
-                y_diff, x_diff, d, x_n, y_n = self._DE([y_temp, x_temp, n_C[i], n_T[i], True]) #  (32, 30, 1),  (32, 30, 1), (32, 30, 2), (32, 30, 1), (32, 30, 1)
-            
+                x_temp_context = x_temp[:, :n_C[i], :]
+                y_temp_context = y_temp[:, :n_C[i], :]
+                x_temp_target = x_temp[:, n_C[i]:n_C[i]+n_T[i], :]
+                y_temp_target = y_temp[:, n_C[i]:n_C[i]+n_T[i], :]
+
+                if i == 0:
+                    y_diff, x_diff, d, x_n, y_n = self._DE([y_temp, x_temp, y_temp_context, y_temp_target, x_temp_context, x_temp_target, 180, 0, i, True]) #  (32, 30, 1),  (32, 30, 1), (32, 30, 2), (32, 30, 1), (32, 30, 1)
+
+                else:
+                    y_diff, x_diff, d, x_n, y_n = self._DE([y_temp, x_temp, y_temp_context, y_temp_target, x_temp_context, x_temp_target, 60, 1, i, True]) 
+            # print("i", i)
+            # print("y_diff.shape", y_diff.shape)
+            # print('##################')
             inputs_for_processing.append([x_emb, y_temp, y_diff, x_diff, d, x_n, y_n])  
             ts_start = ts_end
         
@@ -167,8 +204,9 @@ class atp_pipeline(keras.models.Model):
 
     def call(self, inputs):
 
-        x, y, n_C, n_T, training, n_C_s, n_T_s = inputs #  (batch_size, n_C + n_T, 1), (batch_size, n_C + n_T, 1)
-
+        x, y, n_C, n_T, training, n_C_s, n_T_s, labels = inputs #  (batch_size, n_C + n_T, 1), (batch_size, n_C + n_T, 1)
+        labels_l  = len(labels) - 1
+        print("x shape:", x.shape)
         if not self._bc:
             total_length = sum(n_C) + sum(n_T)
             x = x[:,:total_length,:]
@@ -197,23 +235,23 @@ class atp_pipeline(keras.models.Model):
 
         else:  
             # # the end sequence will be (y_11,.., y_1n_C, y21, ..y_2n_C, y1*, y2*, ..yk*, y1**, y2**, ..yk**)
-            inputs_for_processing, y, y_n = self.inputs_for_multi_ts(x, y, n_C, n_T, n_C_s, n_T_s)
+            inputs_for_processing, y, y_n = self.inputs_for_multi_ts(x, y, n_C, n_T, n_C_s, n_T_s, labels)
             # print("y shape after inputs_for_processing:", y.shape)
             if (self._subsample):
                 pass
-
-        inputs_for_processing.append(140)
+        n_C1 = (labels_l * 120) + 20 
+                  
+        inputs_for_processing.append(n_C1)
         inputs_for_processing.append(10)
         query_x, key_x, value_x, query_xy, key_xy, value_xy = self._feature_wrapper(inputs_for_processing) #  (batch_size, multiply *(n_C_s + n_T_s), enc_dim + multiply + x_diff.dim + x_n.dim), (batch_size, multiply *(n_C_s + n_T_s), enc_dim + multiply + x_diff.dim + x_n.dim) , (batch_size, multiply *(n_C_s + n_T_s), 1), (batch_size, multiply *(n_C_s + n_T_s), enc.dim + multiply + 2 + label.dim + y.dim + y_diff.dim + d.dim + y_n.dim)
 
         value_x = tf.reshape(value_x, (value_x.shape[0], tf.shape(key_x)[1], value_x.shape[-1]))
         y_n_closest = y_n[:, :, :y.shape[-1]] #### need to update this based on how we pick closest point
         ######## make mask #######
-        mask = self._feature_wrapper.masker(140, 10)
-        print("mask shape:", mask.shape)
+        mask = self._feature_wrapper.masker(n_C1, 10)
         μ, log_σ = self._atp([query_x, key_x, value_x, query_xy, key_xy, value_xy, mask, y_n_closest], training=training)
-
-        return μ[:, 140:], log_σ[:, 140:], y[:, 140:]
+        
+        return μ[:, n_C1:], log_σ[:, n_C1:], y[:, n_C1:]
       
 
 def instantiate_atp(dataset,training=True):
