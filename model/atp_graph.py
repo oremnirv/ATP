@@ -15,7 +15,7 @@ def build_graph():
             else:
                 _, _, _, likpp, mse = losses.nll(y1, μ, log_σ)
 
-        print('likpp', likpp.shape)
+        # print('likpp', likpp.shape)
         gradients = tape.gradient(likpp, atp_model.trainable_variables)
         optimizer.apply_gradients(zip(gradients, atp_model.trainable_variables))
         return μ, log_σ, likpp, mse
