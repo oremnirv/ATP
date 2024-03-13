@@ -8,7 +8,7 @@ class model_init():
         def __init__(self, model_name, run, task='forecasting/ETT/', multiply=1, bc=False, subsample = False, y_target_dim=1, img_seg=False, labels=False):
             super().__init__()
             self.model_name = model_name
-            self.opt = tf.keras.optimizers.Adam(3e-4)
+            self.opt = tf.keras.optimizers.Adam(learning_rate=3e-4)
             self.run = run
             self.bc = bc
             self.y_target_dim = y_target_dim
