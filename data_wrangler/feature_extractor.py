@@ -29,23 +29,25 @@ class feature_wrapper(tf.keras.layers.Layer):
         # print("value_xy.shape", value_xy.shape)
         # print("key_xy.shape", key_xy.shape)
         query_xy_label = tf.concat([tf.zeros((batch_s,  n_C ,  1)), tf.ones((batch_s,  n_T,  1))],  axis=1)
-        # print('y_n.shape', y_n.shape)
-        # print('n_C.shape', n_C)
-        # print('n_T.shape', n_T)
-        # print(self.mask_target_pt([y,  n_C,  n_T]))
-        # print(self.mask_target_pt([y_diff,  n_C,  n_T]))
+        print('y_n.shape', y_n.shape)
+        print('n_C.shape', n_C)
+        print('n_T.shape', n_T)
+        print(self.mask_target_pt([y,  n_C,  n_T]))
+        print(self.mask_target_pt([y_diff,  n_C,  n_T]))
         y_prime_masked = tf.concat([self.mask_target_pt([y,  n_C,  n_T]),  self.mask_target_pt([y_diff,  n_C,  n_T]),  self.mask_target_pt([d,  n_C,  n_T]),  y_n],  axis=2)
-        # print("y_prime_masked.shape", y_prime_masked.shape)
-        # print("query_xy_label.shape", query_xy_label.shape)
+        print("y_prime_masked.shape", y_prime_masked.shape)
+        print("query_xy_label.shape", query_xy_label.shape)
         query_xy = tf.concat([y_prime_masked,  query_xy_label,  x_prime], axis=-1)
         return query_x,  key_x,  value_x,  query_xy,  key_xy,  value_xy
 
     def mask_target_pt(self,  inputs):
         y,  n_C,  n_T = inputs
         dim_y = y.shape[-1]
+        print("y.shape", y.shape)
         batch_s = y.shape[0]
 
         mask_y = tf.concat([y[:,  :n_C],  tf.zeros((batch_s,  n_T,  dim_y))],  axis=1)
+        print("mask_y.shape", mask_y.shape)
         return mask_y
     
     def masker(self, n_C, n_T):
@@ -149,12 +151,10 @@ class feature_wrapper(tf.keras.layers.Layer):
         return x            
 
 class DE(tf.keras.layers.Layer):
-    def __init__(self, n_C_s, n_T_s, img_seg=False):
+    def __init__(self, img_seg=False):
         super().__init__()
         self.batch_norm_layer = tf.keras.layers.BatchNormalization()
         self.img_seg = img_seg
-        self.n_C_s = n_C_s
-        self.n_T_s = n_T_s
 
     def call(self,  inputs):
         y_all, x_all, y_temp_context, y_temp_target, x_temp_context, x_temp_target,  context_n, target_m, i,  training = inputs
