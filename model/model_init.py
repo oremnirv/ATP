@@ -8,7 +8,7 @@ class model_init():
         def __init__(self, model_name, run, task='forecasting/ETT/', multiply=1, bc=False, subsample = False, y_target_dim=1, img_seg=False, labels=False):
             super().__init__()
             self.model_name = model_name
-            self.opt = tf.keras.optimizers.Adam(learning_rate=3e-4)
+            self.opt = tf.keras.optimizers.legacy.Adam(learning_rate=3e-4)
             self.run = run
             self.bc = bc
             self.y_target_dim = y_target_dim
@@ -20,8 +20,8 @@ class model_init():
             self.tr_step = atp_graph.build_graph()
             assert model_name in ['leak', 'atp', 'new_block']
             if model_name == 'leak':
-                self.model = atp_pipeline.atp_pipeline(num_heads=4, projection_shape_for_head=20, output_shape=80, rate=0., permutation_repeats=0,
-                    bound_std=False, num_layers=3, enc_dim=80, xmin=0.1, xmax=365, MHAX_leakage=True, multiply=self.multiply, bc=self.bc, subsample=self.subsample, y_target_dim=self.y_target_dim, img_seg=self.img_seg) 
+                self.model = atp_pipeline.atp_pipeline(num_heads=4, projection_shape_for_head=20, output_shape=160, rate=0., permutation_repeats=0,
+                    bound_std=False, num_layers=8, enc_dim=160, xmin=0.1, xmax=365, MHAX_leakage=True, multiply=self.multiply, bc=self.bc, subsample=self.subsample, y_target_dim=self.y_target_dim, img_seg=self.img_seg) 
             elif model_name == 'atp':
                 self.model = atp_pipeline.atp_pipeline(num_heads=6, projection_shape_for_head=11, output_shape=32, rate=0.05, permutation_repeats=0,
                     bound_std=False, num_layers=4, enc_dim=32, xmin=0.1, xmax=1, MHAX_leakage="xxx", multiply=self.multiply, bc=self.bc, subsample=self.subsample, y_target_dim=self.y_target_dim, img_seg=self.img_seg)  
